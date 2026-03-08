@@ -1,0 +1,1550 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
+    />
+    <title>巨脚巡礼</title>
+    <style>
+      :root {
+        color-scheme: only light;
+        --hud-shadow:
+          0 4px 0 rgba(12, 17, 35, 0.95),
+          0 0 18px rgba(255, 255, 255, 0.25);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #10131e;
+        font-family:
+          Impact, Haettenschweiler, "Arial Black", "Hiragino Kaku Gothic ProN",
+          "Yu Gothic", sans-serif;
+      }
+
+      body {
+        position: relative;
+      }
+
+      canvas {
+        display: block;
+        width: 100vw;
+        height: 100vh;
+      }
+
+      .hud {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        color: #f9fbff;
+      }
+
+      .timer {
+        position: absolute;
+        top: 28px;
+        left: 32px;
+        margin: 0;
+        font-size: clamp(2.5rem, 5vw, 5rem);
+        line-height: 0.92;
+        letter-spacing: 0.04em;
+        text-shadow: var(--hud-shadow);
+      }
+
+      .controls {
+        position: absolute;
+        top: 30px;
+        right: 34px;
+        width: min(540px, 42vw);
+        font-size: clamp(1rem, 2.15vw, 2.85rem);
+        line-height: 1.18;
+        text-align: left;
+        text-shadow: var(--hud-shadow);
+      }
+
+      .controls p {
+        margin: 0 0 0.3em;
+      }
+
+      .status {
+        position: absolute;
+        left: 50%;
+        bottom: 26px;
+        transform: translateX(-50%);
+        padding: 0.65rem 1rem;
+        border-radius: 999px;
+        font-size: clamp(0.95rem, 1.65vw, 1.7rem);
+        line-height: 1;
+        letter-spacing: 0.04em;
+        color: #fffef0;
+        background: rgba(18, 21, 30, 0.34);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        box-shadow:
+          0 18px 40px rgba(0, 0, 0, 0.18),
+          inset 0 1px 0 rgba(255, 255, 255, 0.12);
+        backdrop-filter: blur(8px);
+        text-shadow: 0 2px 0 rgba(0, 0, 0, 0.7);
+        white-space: nowrap;
+      }
+
+      .progress {
+        position: absolute;
+        left: 32px;
+        right: 32px;
+        bottom: 82px;
+        height: 16px;
+        border-radius: 999px;
+        overflow: hidden;
+        background: rgba(255, 255, 255, 0.16);
+        box-shadow:
+          inset 0 1px 3px rgba(0, 0, 0, 0.24),
+          0 10px 28px rgba(0, 0, 0, 0.12);
+      }
+
+      .progress > span {
+        display: block;
+        height: 100%;
+        width: 0;
+        border-radius: inherit;
+        background:
+          linear-gradient(
+            90deg,
+            rgba(255, 246, 173, 0.95),
+            rgba(255, 144, 107, 0.94) 52%,
+            rgba(255, 90, 92, 0.92)
+          );
+        box-shadow:
+          0 0 20px rgba(255, 134, 96, 0.42),
+          inset 0 1px 0 rgba(255, 255, 255, 0.45);
+        transition: width 120ms linear;
+      }
+
+      @media (max-width: 900px) {
+        .controls {
+          width: calc(100vw - 60px);
+          top: 22px;
+          right: 30px;
+        }
+
+        .status {
+          white-space: normal;
+          text-align: center;
+          max-width: calc(100vw - 40px);
+        }
+
+        .progress {
+          bottom: 102px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="game"></canvas>
+    <div class="hud">
+      <p class="timer" id="timer">00:00.000</p>
+      <div class="controls" aria-hidden="true">
+        <p>←→: 後ろ脚</p>
+        <p>↑↓: 前脚</p>
+        <p>R: リトライ</p>
+      </div>
+      <div class="progress"><span id="progress-bar"></span></div>
+      <div class="status" id="status">
+        矢印キーで巡礼者の二本脚を操り、守人を踏まずに風祠へ辿り着け。
+      </div>
+    </div>
+    <script src="./node_modules/matter-js/build/matter.min.js"></script>
+    <script>
+      (() => {
+        "use strict";
+
+        const canvas = document.getElementById("game");
+        const ctx = canvas.getContext("2d");
+        const timerEl = document.getElementById("timer");
+        const statusEl = document.getElementById("status");
+        const progressBarEl = document.getElementById("progress-bar");
+
+        if (!window.Matter) {
+          statusEl.textContent =
+            "物理エンジンの読み込みに失敗しました。ネット接続を確認して再読み込みしてください。";
+          return;
+        }
+
+        /*
+         * 素材を差し替えるときは src に相対パスを入れてください。
+         * 剛体の中心基準で描画するので、anchorX/anchorY と drawWidth/drawHeight で
+         * 見た目の合わせ込みを行います。必要なら scale / offsetX / offsetY も調整してください。
+         */
+        const ASSETS = {
+          background: { src: null },
+          torso: {
+            src: "./assets/player-body.png",
+            anchorX: 0.39,
+            anchorY: 0.72,
+            scale: 1,
+            offsetY: 10,
+            drawHeight: 300,
+            fit: "height",
+            trimAlpha: true,
+            flipX: true,
+          },
+          head: { src: null, anchorX: 0.5, anchorY: 0.5, scale: 1 },
+          leg: { src: null, anchorX: 0.5, anchorY: 0.5, scale: 1 },
+          legRear: {
+            src: "./assets/player-leg-rear.png",
+            anchorX: 0.63,
+            anchorY: 0.5,
+            scale: 1,
+            drawHeight: 304,
+            fit: "height",
+            trimAlpha: true,
+            flipX: true,
+          },
+          legFront: {
+            src: "./assets/player-leg-front.png",
+            anchorX: 0.63,
+            anchorY: 0.5,
+            scale: 1,
+            drawHeight: 304,
+            fit: "height",
+            trimAlpha: true,
+            flipX: true,
+          },
+          thigh: { src: null, anchorX: 0.5, anchorY: 0.5, scale: 1 },
+          shin: { src: null, anchorX: 0.5, anchorY: 0.5, scale: 1 },
+          foot: { src: null, anchorX: 0.5, anchorY: 0.5, scale: 1 },
+          enemy: { src: null, anchorX: 0.5, anchorY: 0.7, scale: 1 },
+          goal: { src: null, anchorX: 0.5, anchorY: 1, scale: 1 },
+          ground: { src: null },
+        };
+
+        const {
+          Engine,
+          World,
+          Bodies,
+          Body,
+          Composite,
+          Constraint,
+          Events,
+        } = window.Matter;
+
+        const keys = Object.create(null);
+        const loadedImages = loadImages(ASSETS);
+
+        const terrainBumps = [
+          { x: 730, width: 120, height: 16 },
+          { x: 980, width: 84, height: -12 },
+          { x: 1260, width: 140, height: 24 },
+          { x: 1580, width: 110, height: -10 },
+          { x: 1870, width: 90, height: 18 },
+          { x: 2320, width: 120, height: 28 },
+          { x: 2680, width: 150, height: -14 },
+          { x: 3000, width: 120, height: 22 },
+        ];
+
+        const enemyTemplates = [
+          { radius: 18 },
+          { radius: 20 },
+        ];
+
+        const scene = {
+          width: 1400,
+          goalX: 920,
+          enemies: [],
+          enemyDebris: [],
+          clouds: [
+            { x: 220, y: 132, radius: 82, stretch: 1.8 },
+            { x: 760, y: 182, radius: 64, stretch: 1.5 },
+            { x: 1420, y: 146, radius: 88, stretch: 2.1 },
+            { x: 2150, y: 120, radius: 72, stretch: 1.7 },
+            { x: 3040, y: 198, radius: 90, stretch: 1.95 },
+          ],
+        };
+
+        const state = {
+          mode: "ready",
+          timer: 0,
+          worldTime: 0,
+          cameraX: 0,
+          windTime: 0,
+          windForce: 0,
+        };
+
+        let viewport = {
+          width: window.innerWidth,
+          height: window.innerHeight,
+          dpr: Math.min(window.devicePixelRatio || 1, 2),
+        };
+
+        let engine = null;
+        let player = null;
+        let lastFrame = 0;
+
+        function loadImages(assetMap) {
+          const images = {};
+          for (const [key, config] of Object.entries(assetMap)) {
+            if (!config.src) {
+              continue;
+            }
+            const image = new Image();
+            if (config.removeBackground || config.trimAlpha) {
+              image.addEventListener(
+                "load",
+                () => {
+                  let processed = image;
+                  if (config.removeBackground) {
+                    processed = removeBrightEdgeBackdrop(processed);
+                  }
+                  if (config.trimAlpha) {
+                    processed = trimTransparentBounds(processed);
+                  }
+                  images[key] = processed;
+                },
+                { once: true }
+              );
+            }
+            image.src = config.src;
+            images[key] = image;
+          }
+          return images;
+        }
+
+        function removeBrightEdgeBackdrop(image) {
+          const width = image.naturalWidth || image.width;
+          const height = image.naturalHeight || image.height;
+          const surface = document.createElement("canvas");
+          surface.width = width;
+          surface.height = height;
+          const surfaceCtx = surface.getContext("2d", { willReadFrequently: true });
+          surfaceCtx.drawImage(image, 0, 0);
+
+          const imageData = surfaceCtx.getImageData(0, 0, width, height);
+          const { data } = imageData;
+          const visited = new Uint8Array(width * height);
+          const stack = [];
+
+          function push(x, y) {
+            if (x < 0 || y < 0 || x >= width || y >= height) {
+              return;
+            }
+            const index = y * width + x;
+            if (visited[index]) {
+              return;
+            }
+            visited[index] = 1;
+            stack.push(x, y);
+          }
+
+          function isBackdrop(pixelIndex) {
+            const alpha = data[pixelIndex + 3];
+            if (alpha === 0) {
+              return true;
+            }
+            const red = data[pixelIndex];
+            const green = data[pixelIndex + 1];
+            const blue = data[pixelIndex + 2];
+            const min = Math.min(red, green, blue);
+            const max = Math.max(red, green, blue);
+            return min >= 224 && max - min <= 24;
+          }
+
+          for (let x = 0; x < width; x += 1) {
+            push(x, 0);
+            push(x, height - 1);
+          }
+          for (let y = 0; y < height; y += 1) {
+            push(0, y);
+            push(width - 1, y);
+          }
+
+          while (stack.length) {
+            const y = stack.pop();
+            const x = stack.pop();
+            const pixelOffset = (y * width + x) * 4;
+            if (!isBackdrop(pixelOffset)) {
+              continue;
+            }
+            data[pixelOffset + 3] = 0;
+            push(x + 1, y);
+            push(x - 1, y);
+            push(x, y + 1);
+            push(x, y - 1);
+          }
+
+          surfaceCtx.putImageData(imageData, 0, 0);
+          return surface;
+        }
+
+        function trimTransparentBounds(image) {
+          const width = image.naturalWidth || image.width;
+          const height = image.naturalHeight || image.height;
+          const surface = document.createElement("canvas");
+          surface.width = width;
+          surface.height = height;
+          const surfaceCtx = surface.getContext("2d", { willReadFrequently: true });
+          surfaceCtx.drawImage(image, 0, 0);
+
+          const imageData = surfaceCtx.getImageData(0, 0, width, height);
+          const { data } = imageData;
+          let minX = width;
+          let minY = height;
+          let maxX = -1;
+          let maxY = -1;
+
+          for (let y = 0; y < height; y += 1) {
+            for (let x = 0; x < width; x += 1) {
+              const pixelOffset = (y * width + x) * 4;
+              if (data[pixelOffset + 3] === 0) {
+                continue;
+              }
+              if (x < minX) minX = x;
+              if (y < minY) minY = y;
+              if (x > maxX) maxX = x;
+              if (y > maxY) maxY = y;
+            }
+          }
+
+          if (maxX < minX || maxY < minY) {
+            return surface;
+          }
+
+          const trimmed = document.createElement("canvas");
+          trimmed.width = maxX - minX + 1;
+          trimmed.height = maxY - minY + 1;
+          const trimmedCtx = trimmed.getContext("2d");
+          trimmedCtx.drawImage(
+            surface,
+            minX,
+            minY,
+            trimmed.width,
+            trimmed.height,
+            0,
+            0,
+            trimmed.width,
+            trimmed.height
+          );
+          return trimmed;
+        }
+
+        function isDrawableReady(image) {
+          if (!image) {
+            return false;
+          }
+          return typeof image.complete === "boolean" ? image.complete : true;
+        }
+
+        function clamp(value, min, max) {
+          return Math.min(Math.max(value, min), max);
+        }
+
+        function normalizeAngle(angle) {
+          return ((angle + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
+        }
+
+        function roundRectPath(context, x, y, width, height, radius) {
+          context.beginPath();
+          context.roundRect(x, y, width, height, radius);
+        }
+
+        function groundBase() {
+          return viewport.height - 72;
+        }
+
+        function configureCourse() {
+          scene.width = Math.max(viewport.width + 140, 1180);
+          scene.goalX = clamp(viewport.width - 150, 760, scene.width - 150);
+        }
+
+        function groundHeightAt(x) {
+          const clampedX = clamp(x, 0, scene.width);
+          let height =
+            groundBase() +
+            Math.sin(clampedX * 0.0082) * 10 +
+            Math.sin(clampedX * 0.026) * 4;
+
+          for (const bump of terrainBumps) {
+            const distance = Math.abs(clampedX - bump.x);
+            if (distance > bump.width) {
+              continue;
+            }
+            const t = 1 - distance / bump.width;
+            const curve = t * t * (3 - 2 * t);
+            height -= bump.height * curve;
+          }
+
+          return height;
+        }
+
+        function setStatus(text) {
+          statusEl.textContent = text;
+        }
+
+        function formatTimer(totalSeconds) {
+          const minutes = Math.floor(totalSeconds / 60)
+            .toString()
+            .padStart(2, "0");
+          const seconds = Math.floor(totalSeconds % 60)
+            .toString()
+            .padStart(2, "0");
+          const millis = Math.floor((totalSeconds * 1000) % 1000)
+            .toString()
+            .padStart(3, "0");
+          return `${minutes}:${seconds}.${millis}`;
+        }
+
+        function resize() {
+          viewport.width = window.innerWidth;
+          viewport.height = window.innerHeight;
+          viewport.dpr = Math.min(window.devicePixelRatio || 1, 2);
+          canvas.width = Math.floor(viewport.width * viewport.dpr);
+          canvas.height = Math.floor(viewport.height * viewport.dpr);
+          canvas.style.width = `${viewport.width}px`;
+          canvas.style.height = `${viewport.height}px`;
+          ctx.setTransform(viewport.dpr, 0, 0, viewport.dpr, 0, 0);
+          configureCourse();
+
+          if (engine) {
+            resetGame();
+          }
+        }
+
+        function createTerrainBodies() {
+          const terrainBodies = [];
+          let previousX = -160;
+          let previousY = groundHeightAt(0);
+
+          for (let x = 0; x <= scene.width + 180; x += 68) {
+            const y = groundHeightAt(x);
+            const centerX = (previousX + x) * 0.5;
+            const centerY = (previousY + y) * 0.5;
+            const length = Math.hypot(x - previousX, y - previousY);
+            const angle = Math.atan2(y - previousY, x - previousX);
+
+            terrainBodies.push(
+              Bodies.rectangle(centerX, centerY, length + 8, 40, {
+                isStatic: true,
+                angle,
+                label: "ground",
+                friction: 1.3,
+                frictionStatic: 2.8,
+                render: { visible: false },
+              })
+            );
+
+            previousX = x;
+            previousY = y;
+          }
+
+          terrainBodies.push(
+            Bodies.rectangle(scene.width * 0.5, viewport.height + 180, scene.width + 900, 280, {
+              isStatic: true,
+              label: "ground",
+              render: { visible: false },
+            }),
+            Bodies.rectangle(-120, viewport.height * 0.5, 240, viewport.height * 2, {
+              isStatic: true,
+              label: "wall",
+              render: { visible: false },
+            }),
+            Bodies.rectangle(scene.width + 120, viewport.height * 0.5, 240, viewport.height * 2, {
+              isStatic: true,
+              label: "wall",
+              render: { visible: false },
+            })
+          );
+
+          return terrainBodies;
+        }
+
+        function markDrawable(body, key, width, height) {
+          body.plugin.draw = { key, width, height };
+          return body;
+        }
+
+        function createPlayer() {
+          const collisionGroup = Body.nextGroup(true);
+          const baseX = 220;
+          const leftFootX = baseX - 30;
+          const rightFootX = baseX + 30;
+          const leftFootY = groundHeightAt(leftFootX) - 8;
+          const rightFootY = groundHeightAt(rightFootX) - 8;
+          const legWidth = 34;
+          const legHeight = 304;
+          const torsoWidth = 126;
+          const torsoHeight = 164;
+          const headRadius = 30;
+          const torsoY = Math.min(leftFootY, rightFootY) - 374;
+
+          const common = {
+            collisionFilter: { group: collisionGroup },
+            restitution: 0,
+          };
+
+          const torsoCore = Bodies.rectangle(baseX, torsoY, torsoWidth, torsoHeight, {
+              ...common,
+              label: "player/torso",
+              chamfer: { radius: 20 },
+              density: 0.0017,
+              frictionAir: 0.02,
+            });
+
+          const torso = markDrawable(
+            torsoCore,
+            "torso",
+            ASSETS.torso.drawWidth || torsoWidth,
+            ASSETS.torso.drawHeight || torsoHeight
+          );
+
+          const leftLeg = markDrawable(
+            Bodies.rectangle(leftFootX, leftFootY - legHeight * 0.5, legWidth, legHeight, {
+              ...common,
+              label: "player/left-leg",
+              chamfer: { radius: 16 },
+              density: 0.00132,
+              friction: 1.55,
+              frictionStatic: 3.1,
+              frictionAir: 0.028,
+            }),
+            "legRear",
+            ASSETS.legRear.drawWidth || legWidth,
+            ASSETS.legRear.drawHeight || legHeight
+          );
+
+          const rightLeg = markDrawable(
+            Bodies.rectangle(rightFootX, rightFootY - legHeight * 0.5, legWidth, legHeight, {
+              ...common,
+              label: "player/right-leg",
+              chamfer: { radius: 16 },
+              density: 0.00132,
+              friction: 1.55,
+              frictionStatic: 3.1,
+              frictionAir: 0.028,
+            }),
+            "legFront",
+            ASSETS.legFront.drawWidth || legWidth,
+            ASSETS.legFront.drawHeight || legHeight
+          );
+
+          const constraints = [
+            Constraint.create({
+              bodyA: torso,
+              pointA: { x: -16, y: 88 },
+              bodyB: leftLeg,
+              pointB: { x: 0, y: -legHeight * 0.5 + 8 },
+              stiffness: 0.985,
+              damping: 0.2,
+              length: 0,
+            }),
+            Constraint.create({
+              bodyA: torso,
+              pointA: { x: 16, y: 88 },
+              bodyB: rightLeg,
+              pointB: { x: 0, y: -legHeight * 0.5 + 8 },
+              stiffness: 0.985,
+              damping: 0.2,
+              length: 0,
+            }),
+          ];
+
+          Composite.add(engine.world, [
+            torso,
+            leftLeg,
+            rightLeg,
+            ...constraints,
+          ]);
+
+          return {
+            torso,
+            head: {
+              radius: headRadius,
+              localX: 0,
+              localY: -145,
+            },
+            bodies: [torso, leftLeg, rightLeg],
+            legs: [
+              {
+                side: "rear",
+                leg: leftLeg,
+                controlSign: 1,
+                motorAngle: 0,
+                idleAngle: 0,
+                unwrappedAngle: 0,
+                lastWrappedAngle: 0,
+                rotationSpeed: 0.034,
+              },
+              {
+                side: "front",
+                leg: rightLeg,
+                controlSign: -1,
+                motorAngle: 0,
+                idleAngle: 0,
+                unwrappedAngle: 0,
+                lastWrappedAngle: 0,
+                rotationSpeed: 0.034,
+              },
+            ],
+          };
+        }
+
+        function getLegTip(body) {
+          const halfHeight = body.plugin.draw.height * 0.5 - 4;
+          return {
+            x: body.position.x - Math.sin(body.angle) * halfHeight,
+            y: body.position.y + Math.cos(body.angle) * halfHeight,
+          };
+        }
+
+        function getHeadPose() {
+          const cos = Math.cos(player.torso.angle);
+          const sin = Math.sin(player.torso.angle);
+          const { localX, localY, radius } = player.head;
+          return {
+            x: player.torso.position.x + localX * cos - localY * sin,
+            y: player.torso.position.y + localX * sin + localY * cos,
+            angle: player.torso.angle,
+            radius,
+          };
+        }
+
+        function createEnemies() {
+          scene.enemyDebris = [];
+          const minX = 310;
+          const maxX = Math.max(minX + 240, scene.goalX - 170);
+          const placements = [];
+
+          for (let index = 0; index < enemyTemplates.length; index += 1) {
+            let x = minX;
+            let attempts = 0;
+            do {
+              x = minX + Math.random() * (maxX - minX);
+              attempts += 1;
+            } while (
+              placements.some((placedX) => Math.abs(placedX - x) < 170) &&
+              attempts < 48
+            );
+            placements.push(x);
+          }
+
+          placements.sort((a, b) => a - b);
+
+          scene.enemies = enemyTemplates.map((entry, index) => {
+            const x = placements[index];
+            const body = Bodies.circle(x, groundHeightAt(x) - entry.radius - 6, entry.radius, {
+              isStatic: true,
+              isSensor: true,
+              label: `enemy/${index}`,
+              render: { visible: false },
+            });
+
+            Composite.add(engine.world, body);
+
+            return {
+              ...entry,
+              x,
+              body,
+              collapsed: false,
+            };
+          });
+        }
+
+        function collapseEnemy(enemy) {
+          if (enemy.collapsed) {
+            return;
+          }
+
+          enemy.collapsed = true;
+          Composite.remove(engine.world, enemy.body);
+
+          const debrisPalette = ["#143f76", "#1d5d9e", "#d1f2ff", "#0b2347", "#79b9ef"];
+          const pieceCount = 8;
+
+          for (let i = 0; i < pieceCount; i += 1) {
+            const size = 8 + (i % 3) * 4;
+            const piece = Bodies.rectangle(
+              enemy.body.position.x + (Math.random() - 0.5) * 14,
+              enemy.body.position.y + (Math.random() - 0.5) * 10,
+              size,
+              size + (i % 2) * 3,
+              {
+                label: "enemy-debris",
+                restitution: 0.18,
+                friction: 0.9,
+                frictionAir: 0.018,
+              }
+            );
+
+            piece.plugin.debris = {
+              color: debrisPalette[i % debrisPalette.length],
+              width: size,
+              height: size + (i % 2) * 3,
+              bornAt: state.worldTime,
+              life: 1.4,
+            };
+
+            Body.setVelocity(piece, {
+              x: (Math.random() - 0.5) * 8,
+              y: -2 - Math.random() * 4,
+            });
+            Body.setAngularVelocity(piece, (Math.random() - 0.5) * 0.45);
+            Composite.add(engine.world, piece);
+            scene.enemyDebris.push(piece);
+          }
+        }
+
+        function updateEnemyDebris() {
+          scene.enemyDebris = scene.enemyDebris.filter((piece) => {
+            const age = state.worldTime - piece.plugin.debris.bornAt;
+            if (age <= piece.plugin.debris.life) {
+              return true;
+            }
+            Composite.remove(engine.world, piece);
+            return false;
+          });
+        }
+
+        function applyRelativeAngleMotor(parent, child, currentAngle, targetAngle, stiffness, damping, maxDelta) {
+          const relativeVelocity = child.angularVelocity - parent.angularVelocity;
+          const correction = clamp(
+            (targetAngle - currentAngle) * stiffness - relativeVelocity * damping,
+            -maxDelta,
+            maxDelta
+          );
+
+          Body.setAngularVelocity(child, child.angularVelocity + correction);
+          Body.setAngularVelocity(parent, parent.angularVelocity - correction * 0.25);
+        }
+
+        function syncLegMotorState(leg, resetTarget = false) {
+          const wrappedAngle = normalizeAngle(leg.leg.angle - player.torso.angle);
+
+          if (!Number.isFinite(leg.unwrappedAngle)) {
+            leg.unwrappedAngle = wrappedAngle;
+            leg.lastWrappedAngle = wrappedAngle;
+            leg.motorAngle = wrappedAngle;
+            leg.idleAngle = wrappedAngle;
+            return;
+          }
+
+          leg.unwrappedAngle += normalizeAngle(wrappedAngle - leg.lastWrappedAngle);
+          leg.lastWrappedAngle = wrappedAngle;
+
+          if (resetTarget) {
+            leg.motorAngle = leg.unwrappedAngle;
+            leg.idleAngle = leg.unwrappedAngle;
+          }
+        }
+
+        function isLegGrounded(legBody) {
+          const tip = getLegTip(legBody);
+          const floor = groundHeightAt(tip.x);
+          return tip.y >= floor - 8 && Math.abs(legBody.velocity.y) < 3.2;
+        }
+
+        function controlLeg(leg, input) {
+          syncLegMotorState(leg);
+          const grounded = isLegGrounded(leg.leg);
+          const active = Math.abs(input) > 0.05;
+          const motorBoost = grounded ? 1.04 : 0.9;
+
+          if (state.mode === "ready") {
+            leg.motorAngle += (leg.idleAngle - leg.motorAngle) * 0.18;
+          } else if (active) {
+            leg.motorAngle += input * leg.controlSign * leg.rotationSpeed;
+          }
+
+          if (active || state.mode === "ready") {
+            applyRelativeAngleMotor(
+              player.torso,
+              leg.leg,
+              leg.unwrappedAngle,
+              leg.motorAngle,
+              0.095 * motorBoost,
+              0.16,
+              0.08
+            );
+          }
+
+          if (state.mode === "playing" && active) {
+            const tip = getLegTip(leg.leg);
+            if (grounded) {
+              const driveForce = input * 0.00042;
+              Body.applyForce(leg.leg, tip, { x: driveForce, y: 0 });
+              Body.applyForce(player.torso, player.torso.position, {
+                x: -driveForce * 0.45,
+                y: 0,
+              });
+            } else {
+              Body.applyForce(leg.leg, tip, {
+                x: input * 0.0001,
+                y: -0.00006,
+              });
+            }
+          }
+        }
+
+        function updateWind(dt) {
+          if (state.mode !== "playing") {
+            state.windForce *= 0.9;
+            return;
+          }
+
+          state.windTime += dt;
+          const base =
+            Math.sin(state.windTime * 0.7) * 0.18 +
+            Math.sin(state.windTime * 1.6 + 0.4) * 0.08;
+          const burst = Math.max(0, Math.sin(state.windTime * 0.22 - 0.5)) ** 5 * 0.55;
+          state.windForce = base + burst;
+        }
+
+
+        function controlPlayer() {
+          if (state.mode === "lost" || state.mode === "won") {
+            return;
+          }
+
+          const rearInput = keys.arrowright ? 1 : keys.arrowleft ? -1 : 0;
+          const frontInput = keys.arrowup ? 1 : keys.arrowdown ? -1 : 0;
+
+          if ((rearInput || frontInput) && state.mode === "ready") {
+            state.mode = "playing";
+            setStatus("矢印キーで脚を回して前進。重心を崩さず、守人に触れずに抜けろ。");
+          }
+
+          for (const leg of player.legs) {
+            const input = leg.side === "rear" ? rearInput : frontInput;
+            controlLeg(leg, input);
+          }
+
+          Body.applyForce(player.torso, player.torso.position, {
+            x: state.windForce * 0.00024,
+            y: 0,
+          });
+        }
+
+        function lose(message) {
+          if (state.mode === "lost" || state.mode === "won") {
+            return;
+          }
+          state.mode = "lost";
+          setStatus(`${message} Rでやり直し。`);
+        }
+
+        function win() {
+          if (state.mode === "lost" || state.mode === "won") {
+            return;
+          }
+          state.mode = "won";
+          setStatus(`到達。記録 ${formatTimer(state.timer)}。Rで再挑戦。`);
+        }
+
+        function handleCollisions(event) {
+          if (state.mode === "won") {
+            return;
+          }
+
+          for (const pair of event.pairs) {
+            const { bodyA, bodyB } = pair;
+            const labels = [bodyA.label, bodyB.label];
+            const touchesEnemy =
+              (labels[0].startsWith("player/") && labels[1].startsWith("enemy/")) ||
+              (labels[1].startsWith("player/") && labels[0].startsWith("enemy/"));
+
+            if (touchesEnemy) {
+              const enemyBody = labels[0].startsWith("enemy/") ? bodyA : bodyB;
+              const enemy = scene.enemies.find((entry) => entry.body === enemyBody);
+              if (enemy && !enemy.collapsed) {
+                collapseEnemy(enemy);
+                lose("守人を崩した。ゲームオーバー。");
+              }
+              return;
+            }
+          }
+        }
+
+        function checkFailureOrWin() {
+          if (state.mode === "lost" || state.mode === "won") {
+            return;
+          }
+
+          if (
+            player.torso.position.x >= scene.goalX - 34 &&
+            player.legs.every((leg) => getLegTip(leg.leg).x >= scene.goalX - 120)
+          ) {
+            win();
+          }
+        }
+
+        function updateCamera() {
+          const target = clamp(
+            player.torso.position.x - viewport.width * 0.28,
+            0,
+            Math.max(0, scene.width - viewport.width)
+          );
+          state.cameraX += (target - state.cameraX) * 0.12;
+        }
+
+        function settleInitialPose() {
+          for (let i = 0; i < 8; i += 1) {
+            Engine.update(engine, 1000 / 60);
+          }
+
+          for (const leg of player.legs) {
+            leg.unwrappedAngle = NaN;
+            syncLegMotorState(leg, true);
+          }
+
+          for (const body of player.bodies) {
+            Body.setVelocity(body, { x: 0, y: 0 });
+            Body.setAngularVelocity(body, 0);
+          }
+        }
+
+        function resetGame() {
+          for (const key of Object.keys(keys)) {
+            delete keys[key];
+          }
+
+          engine = Engine.create();
+          engine.gravity.y = 1;
+          engine.gravity.scale = 0.00145;
+          engine.positionIterations = 10;
+          engine.velocityIterations = 8;
+          engine.constraintIterations = 6;
+
+          Composite.add(engine.world, createTerrainBodies());
+          createEnemies();
+          player = createPlayer();
+          Events.on(engine, "collisionStart", handleCollisions);
+
+          state.mode = "ready";
+          state.timer = 0;
+          state.worldTime = 0;
+          state.cameraX = 0;
+          state.windTime = 0.35;
+          state.windForce = 0;
+          setStatus("転倒はOK。←→で後ろ脚、↑↓で前脚を回し、守人を崩さずに風祠へ辿り着け。");
+
+          settleInitialPose();
+        }
+
+        function update(deltaMs) {
+          const deltaSeconds = deltaMs / 1000;
+          state.worldTime += deltaSeconds;
+          updateWind(deltaSeconds);
+          updateEnemyDebris();
+          controlPlayer();
+          Engine.update(engine, deltaMs);
+
+          if (state.mode === "playing") {
+            state.timer += deltaSeconds;
+          }
+
+          checkFailureOrWin();
+          updateCamera();
+        }
+
+        function drawBackground() {
+          const backgroundImage = loadedImages.background;
+          if (isDrawableReady(backgroundImage)) {
+            ctx.drawImage(backgroundImage, 0, 0, viewport.width, viewport.height);
+            return;
+          }
+
+          const sky = ctx.createLinearGradient(0, 0, 0, viewport.height);
+          sky.addColorStop(0, "#58c7c4");
+          sky.addColorStop(0.42, "#94d5db");
+          sky.addColorStop(0.82, "#d7dce7");
+          sky.addColorStop(1, "#f2dfe6");
+          ctx.fillStyle = sky;
+          ctx.fillRect(0, 0, viewport.width, viewport.height);
+
+          const haze = ctx.createRadialGradient(
+            viewport.width * 0.18,
+            viewport.height * 0.14,
+            10,
+            viewport.width * 0.18,
+            viewport.height * 0.14,
+            viewport.width * 0.33
+          );
+          haze.addColorStop(0, "rgba(255, 249, 232, 0.42)");
+          haze.addColorStop(1, "rgba(255, 249, 232, 0)");
+          ctx.fillStyle = haze;
+          ctx.beginPath();
+          ctx.arc(
+            viewport.width * 0.18,
+            viewport.height * 0.14,
+            viewport.width * 0.33,
+            0,
+            Math.PI * 2
+          );
+          ctx.fill();
+
+          drawParallaxClouds(0.17, "rgba(255,255,255,0.28)");
+          drawParallaxRidges();
+        }
+
+        function drawParallaxClouds(parallax, color) {
+          ctx.save();
+          ctx.translate(-state.cameraX * parallax, 0);
+          ctx.fillStyle = color;
+          for (const cloud of scene.clouds) {
+            ctx.beginPath();
+            ctx.ellipse(
+              cloud.x,
+              cloud.y,
+              cloud.radius * cloud.stretch,
+              cloud.radius,
+              0,
+              0,
+              Math.PI * 2
+            );
+            ctx.fill();
+          }
+          ctx.restore();
+        }
+
+        function drawParallaxRidges() {
+          const layers = [
+            { offset: 0.18, color: "rgba(81, 123, 132, 0.22)", height: 210 },
+            { offset: 0.28, color: "rgba(57, 92, 111, 0.18)", height: 160 },
+          ];
+
+          for (const layer of layers) {
+            ctx.save();
+            ctx.translate(-state.cameraX * layer.offset, 0);
+            ctx.fillStyle = layer.color;
+            ctx.beginPath();
+            ctx.moveTo(-200, viewport.height);
+            for (let x = -200; x <= scene.width + 200; x += 60) {
+              const ridgeY =
+                viewport.height - layer.height +
+                Math.sin(x * 0.0037 + layer.offset * 12) * 26 +
+                Math.cos(x * 0.009 + layer.offset * 6) * 10;
+              ctx.lineTo(x, ridgeY);
+            }
+            ctx.lineTo(scene.width + 200, viewport.height);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+          }
+        }
+
+        function drawGround() {
+          const groundImage = loadedImages.ground;
+          if (isDrawableReady(groundImage)) {
+            ctx.drawImage(
+              groundImage,
+              state.cameraX,
+              groundBase() - 120,
+              viewport.width,
+              160
+            );
+            return;
+          }
+
+          const startX = Math.floor(state.cameraX / 24) * 24 - 48;
+          const endX = state.cameraX + viewport.width + 48;
+
+          ctx.beginPath();
+          ctx.moveTo(startX, viewport.height);
+          ctx.lineTo(startX, groundHeightAt(startX));
+          for (let x = startX; x <= endX; x += 24) {
+            ctx.lineTo(x, groundHeightAt(x));
+          }
+          ctx.lineTo(endX, viewport.height);
+          ctx.closePath();
+
+          const dirt = ctx.createLinearGradient(0, groundBase() - 8, 0, viewport.height);
+          dirt.addColorStop(0, "#f1c788");
+          dirt.addColorStop(0.2, "#d49b54");
+          dirt.addColorStop(1, "#5d3d12");
+          ctx.fillStyle = dirt;
+          ctx.fill();
+
+          ctx.save();
+          ctx.beginPath();
+          ctx.moveTo(startX, groundHeightAt(startX));
+          for (let x = startX; x <= endX; x += 18) {
+            ctx.lineTo(x, groundHeightAt(x) - 8 - Math.sin(x * 0.12) * 2);
+          }
+          for (let x = endX; x >= startX; x -= 18) {
+            ctx.lineTo(x, groundHeightAt(x) + 16);
+          }
+          ctx.closePath();
+          ctx.fillStyle = "#29940d";
+          ctx.fill();
+          ctx.restore();
+        }
+
+        function drawGoal() {
+          const x = scene.goalX;
+          const baseY = groundHeightAt(x);
+          const goalImage = loadedImages.goal;
+
+          if (isDrawableReady(goalImage)) {
+            const width = 180 * (ASSETS.goal.scale || 1);
+            const height = 180 * (ASSETS.goal.scale || 1);
+            ctx.drawImage(
+              goalImage,
+              x - width * ASSETS.goal.anchorX + (ASSETS.goal.offsetX || 0),
+              baseY - height * ASSETS.goal.anchorY + (ASSETS.goal.offsetY || 0),
+              width,
+              height
+            );
+            return;
+          }
+
+          ctx.save();
+          ctx.translate(x, baseY);
+
+          ctx.fillStyle = "#8d1212";
+          ctx.font = '700 48px Impact, "Arial Black", sans-serif';
+          ctx.textAlign = "center";
+          ctx.strokeStyle = "rgba(255,255,255,0.65)";
+          ctx.lineWidth = 4;
+          ctx.strokeText("風祠", 0, -140);
+          ctx.fillText("風祠", 0, -140);
+
+          ctx.fillStyle = "#c8beb8";
+          ctx.strokeStyle = "#3c3b45";
+          ctx.lineWidth = 3;
+          roundRectPath(ctx, -60, -88, 120, 84, 16);
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.fillStyle = "#8a8583";
+          roundRectPath(ctx, -18, -38, 36, 34, 8);
+          ctx.fill();
+
+          ctx.fillStyle = "#e4c7c7";
+          ctx.beginPath();
+          ctx.moveTo(-78, -84);
+          ctx.lineTo(-60, -98);
+          ctx.lineTo(-42, -84);
+          ctx.closePath();
+          ctx.fill();
+          ctx.beginPath();
+          ctx.moveTo(42, -84);
+          ctx.lineTo(60, -98);
+          ctx.lineTo(78, -84);
+          ctx.closePath();
+          ctx.fill();
+
+          ctx.fillStyle = "#a09ca1";
+          ctx.fillRect(-6, -110, 12, 22);
+          ctx.fillStyle = "#38c9f3";
+          ctx.fillRect(6, -116, 24, 16);
+          ctx.restore();
+        }
+
+        function drawShadow(x, y, width, alpha) {
+          ctx.save();
+          ctx.fillStyle = `rgba(17, 33, 45, ${alpha})`;
+          ctx.beginPath();
+          ctx.ellipse(x, y, width, width * 0.24, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+
+        function drawBodySprite(body, key) {
+          const image = loadedImages[key];
+          if (!isDrawableReady(image)) {
+            return false;
+          }
+
+          const config = ASSETS[key];
+          const drawInfo = body.plugin.draw;
+          const sourceWidth = image.naturalWidth || image.width || drawInfo.width || drawInfo.radius * 2;
+          const sourceHeight = image.naturalHeight || image.height || drawInfo.height || drawInfo.radius * 2;
+          let width = (config.drawWidth || drawInfo.width || drawInfo.radius * 2) * (config.scale || 1);
+          let height = (config.drawHeight || drawInfo.height || drawInfo.radius * 2) * (config.scale || 1);
+
+          if (config.fit === "height" && sourceWidth && sourceHeight) {
+            width = height * (sourceWidth / sourceHeight);
+          } else if (config.fit === "width" && sourceWidth && sourceHeight) {
+            height = width * (sourceHeight / sourceWidth);
+          }
+
+          const anchorX = config.flipX ? 1 - config.anchorX : config.anchorX;
+
+          ctx.save();
+          ctx.translate(body.position.x, body.position.y);
+          ctx.rotate(body.angle);
+          ctx.translate(config.offsetX || 0, config.offsetY || 0);
+          if (config.flipX) {
+            ctx.scale(-1, 1);
+          }
+          ctx.drawImage(
+            image,
+            -width * anchorX,
+            -height * config.anchorY,
+            width,
+            height
+          );
+          ctx.restore();
+          return true;
+        }
+
+        function drawRoundedBody(body, fill, stroke, radius) {
+          const drawInfo = body.plugin.draw;
+          ctx.save();
+          ctx.translate(body.position.x, body.position.y);
+          ctx.rotate(body.angle);
+          roundRectPath(
+            ctx,
+            -drawInfo.width * 0.5,
+            -drawInfo.height * 0.5,
+            drawInfo.width,
+            drawInfo.height,
+            radius
+          );
+          ctx.fillStyle = fill;
+          ctx.fill();
+          ctx.strokeStyle = stroke;
+          ctx.lineWidth = 2;
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        function drawHead() {
+          const headPose = getHeadPose();
+          const image = loadedImages.head;
+
+          if (isDrawableReady(image)) {
+            const size = headPose.radius * 2 * (ASSETS.head.scale || 1.15);
+            ctx.save();
+            ctx.translate(
+              headPose.x + (ASSETS.head.offsetX || 0),
+              headPose.y + (ASSETS.head.offsetY || 0)
+            );
+            ctx.rotate(headPose.angle);
+            ctx.drawImage(
+              image,
+              -size * ASSETS.head.anchorX,
+              -size * ASSETS.head.anchorY,
+              size,
+              size
+            );
+            ctx.restore();
+            return;
+          }
+
+          ctx.save();
+          ctx.translate(headPose.x, headPose.y);
+          ctx.rotate(headPose.angle);
+          ctx.fillStyle = "#f7d0ba";
+          ctx.strokeStyle = "#5b4740";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.ellipse(0, 0, 26, 32, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.fillStyle = "#0b0f16";
+          ctx.beginPath();
+          ctx.moveTo(-20, -20);
+          ctx.quadraticCurveTo(8, -46, 30, -8);
+          ctx.lineTo(12, -6);
+          ctx.quadraticCurveTo(-2, -24, -20, -20);
+          ctx.fill();
+
+          ctx.fillStyle = "#1f2633";
+          ctx.beginPath();
+          ctx.arc(-8, -2, 3.6, 0, Math.PI * 2);
+          ctx.arc(8, -2, 3.6, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+
+        function drawTorso() {
+          if (drawBodySprite(player.torso, "torso")) {
+            return true;
+          }
+
+          drawRoundedBody(player.torso, "#8fb6e2", "#445369", 24);
+          ctx.save();
+          ctx.translate(player.torso.position.x, player.torso.position.y);
+          ctx.rotate(player.torso.angle);
+          ctx.fillStyle = "#f7d7c2";
+          roundRectPath(ctx, -10, -114, 20, 30, 10);
+          ctx.fill();
+          ctx.fillStyle = "#3e8cc9";
+          roundRectPath(ctx, -62, 48, 124, 42, 14);
+          ctx.fill();
+          ctx.restore();
+          return false;
+        }
+
+        function drawPlayer() {
+          const rearLeg = player.legs[0];
+          const frontLeg = player.legs[1];
+          const rearTip = getLegTip(rearLeg.leg);
+          const frontTip = getLegTip(frontLeg.leg);
+
+          drawShadow(rearTip.x, groundHeightAt(rearTip.x) + 4, 28, 0.16);
+          drawShadow(frontTip.x, groundHeightAt(frontTip.x) + 4, 28, 0.18);
+
+          if (!drawBodySprite(rearLeg.leg, rearLeg.leg.plugin.draw.key)) {
+            drawRoundedBody(rearLeg.leg, "#e8c0a8", "#6f594f", 16);
+          }
+
+          if (!drawBodySprite(frontLeg.leg, frontLeg.leg.plugin.draw.key)) {
+            drawRoundedBody(frontLeg.leg, "#f3cbb3", "#765b50", 16);
+          }
+
+          const torsoHasSprite = drawTorso();
+          if (!torsoHasSprite) {
+            drawHead();
+          }
+        }
+
+        function drawEnemy(enemy) {
+          if (enemy.collapsed) {
+            return;
+          }
+
+          const image = loadedImages.enemy;
+          const x = enemy.body.position.x;
+          const y = enemy.body.position.y;
+
+          if (isDrawableReady(image)) {
+            const size = enemy.radius * 2.8 * (ASSETS.enemy.scale || 1);
+            ctx.drawImage(
+              image,
+              x - size * ASSETS.enemy.anchorX + (ASSETS.enemy.offsetX || 0),
+              y - size * ASSETS.enemy.anchorY + (ASSETS.enemy.offsetY || 0),
+              size,
+              size
+            );
+            return;
+          }
+
+          ctx.save();
+          ctx.translate(x, y);
+          ctx.fillStyle = "rgba(9, 41, 82, 0.92)";
+          ctx.strokeStyle = "rgba(4, 16, 34, 0.8)";
+          ctx.lineWidth = 2;
+
+          ctx.beginPath();
+          ctx.arc(0, -enemy.radius * 0.55, enemy.radius * 0.44, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.beginPath();
+          ctx.moveTo(-enemy.radius * 0.32, -enemy.radius * 0.2);
+          ctx.lineTo(0, -enemy.radius * 0.78);
+          ctx.lineTo(enemy.radius * 0.32, -enemy.radius * 0.2);
+          ctx.quadraticCurveTo(enemy.radius * 0.5, enemy.radius * 0.44, 0, enemy.radius * 0.52);
+          ctx.quadraticCurveTo(-enemy.radius * 0.5, enemy.radius * 0.44, -enemy.radius * 0.32, -enemy.radius * 0.2);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.strokeStyle = "#143f76";
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.moveTo(-enemy.radius * 0.34, enemy.radius * 0.18);
+          ctx.lineTo(-enemy.radius * 0.44, enemy.radius * 1.02);
+          ctx.moveTo(0, enemy.radius * 0.28);
+          ctx.lineTo(0, enemy.radius * 1.1);
+          ctx.moveTo(enemy.radius * 0.34, enemy.radius * 0.18);
+          ctx.lineTo(enemy.radius * 0.44, enemy.radius * 1.02);
+          ctx.stroke();
+
+          ctx.fillStyle = "#d1f2ff";
+          ctx.beginPath();
+          ctx.arc(-enemy.radius * 0.12, -enemy.radius * 0.58, 2.2, 0, Math.PI * 2);
+          ctx.arc(enemy.radius * 0.12, -enemy.radius * 0.58, 2.2, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+
+        function drawEnemyDebris(piece) {
+          const age = state.worldTime - piece.plugin.debris.bornAt;
+          const fade = clamp(1 - age / piece.plugin.debris.life, 0, 1);
+          const { width, height, color } = piece.plugin.debris;
+
+          ctx.save();
+          ctx.translate(piece.position.x, piece.position.y);
+          ctx.rotate(piece.angle);
+          ctx.globalAlpha = fade;
+          ctx.fillStyle = color;
+          ctx.strokeStyle = "rgba(4, 16, 34, 0.45)";
+          ctx.lineWidth = 1.5;
+          roundRectPath(ctx, -width * 0.5, -height * 0.5, width, height, 3);
+          ctx.fill();
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        function render() {
+          ctx.clearRect(0, 0, viewport.width, viewport.height);
+          drawBackground();
+
+          ctx.save();
+          ctx.translate(-state.cameraX, 0);
+          drawGoal();
+          for (const enemy of scene.enemies) {
+            if (enemy.collapsed) {
+              continue;
+            }
+            drawShadow(enemy.body.position.x, groundHeightAt(enemy.body.position.x) + 3, enemy.radius * 1.25, 0.16);
+            drawEnemy(enemy);
+          }
+          for (const piece of scene.enemyDebris) {
+            drawEnemyDebris(piece);
+          }
+          drawPlayer();
+          drawGround();
+          ctx.restore();
+
+          timerEl.textContent = formatTimer(state.timer);
+          const progress = clamp(player.torso.position.x / scene.goalX, 0, 1) * 100;
+          progressBarEl.style.width = `${progress}%`;
+        }
+
+        function loop(timestamp) {
+          if (!lastFrame) {
+            lastFrame = timestamp;
+          }
+
+          const delta = Math.min(33, timestamp - lastFrame);
+          lastFrame = timestamp;
+          update(delta);
+          render();
+          requestAnimationFrame(loop);
+        }
+
+        window.addEventListener("keydown", (event) => {
+          const key = event.key.toLowerCase();
+          if (["arrowleft", "arrowright", "arrowup", "arrowdown", "r"].includes(key)) {
+            event.preventDefault();
+          }
+
+          if (key === "r") {
+            resetGame();
+            return;
+          }
+
+          keys[key] = true;
+        });
+
+        window.addEventListener("keyup", (event) => {
+          keys[event.key.toLowerCase()] = false;
+        });
+
+        window.addEventListener("resize", resize);
+
+        resize();
+        resetGame();
+        requestAnimationFrame(loop);
+      })();
+    </script>
+  </body>
+</html>

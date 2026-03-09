@@ -646,7 +646,7 @@
 
           scene.enemies = enemyTemplates.map((entry, index) => {
             const x = placements[index];
-            const collisionRadius = entry.radius * 1.7;
+            const collisionRadius = entry.radius * 0;
             const body = Bodies.circle(x, groundHeightAt(x) - collisionRadius, collisionRadius, {
               isStatic: true,
               isSensor: true,
@@ -846,7 +846,8 @@
             return;
           }
           state.mode = "won";
-          setStatus(`到達。記録 ${formatTimer(state.timer)}。Rで再挑戦。`);
+          state.wonAt = state.worldTime;
+          state.winRecord = formatTimer(state.timer);
         }
 
         function handleCollisions(event) {
@@ -871,19 +872,20 @@
               }
               return;
             }
+
+            const touchesGoal =
+              (labels[0].startsWith("player/") && labels[1] === "goal") ||
+              (labels[1].startsWith("player/") && labels[0] === "goal");
+            if (touchesGoal) {
+              win();
+              return;
+            }
           }
         }
 
         function checkFailureOrWin() {
           if (state.mode === "lost" || state.mode === "won") {
             return;
-          }
-
-          if (
-            player.torso.position.x >= scene.goalX - 34 &&
-            player.legs.every((leg) => getLegTip(leg.leg).x >= scene.goalX - 120)
-          ) {
-            win();
           }
         }
 
@@ -933,6 +935,24 @@
 
           Composite.add(engine.world, createTerrainBodies());
           createEnemies();
+
+          const goalSize = 180 * (ASSETS.goal.scale || 1);
+          const goalOffsetY = ASSETS.goal.offsetY || 0;
+          const goalTop = groundHeightAt(scene.goalX) - goalSize * ASSETS.goal.anchorY + goalOffsetY;
+          const goalBody = Bodies.rectangle(
+            scene.goalX,
+            goalTop + goalSize / 2,
+            goalSize * 0.8,
+            goalSize,
+            {
+              isStatic: true,
+              isSensor: true,
+              label: "goal",
+              render: { visible: false },
+            }
+          );
+          Composite.add(engine.world, goalBody);
+
           player = createPlayer();
           Events.on(engine, "collisionStart", handleCollisions);
 
@@ -1407,7 +1427,47 @@
               ctx.fillStyle = "#999";
               ctx.font = `${Math.floor(viewport.width * 0.02)}px "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif`;
               ctx.textAlign = "center";
-              ctx.fillText("Rキーでリトライ", viewport.width / 2, viewport.height / 2 + 40);
+              ctx.fillText("Rキーでリトライ", viewport.width / 2, viewport.height / 2 + 60);
+            }
+
+            ctx.restore();
+          }
+
+          if (state.mode === "won") {
+            const elapsed = state.worldTime - state.wonAt;
+            const overlayAlpha = Math.min(elapsed / 2.0, 0.6);
+            const titleAlpha = Math.min(Math.max((elapsed - 0.8) / 1.0, 0), 1);
+            const recordAlpha = Math.min(Math.max((elapsed - 1.8) / 1.0, 0), 1);
+            const retryAlpha = Math.min(Math.max((elapsed - 2.8) / 1.0, 0), 1);
+
+            ctx.save();
+            ctx.globalAlpha = overlayAlpha;
+            ctx.fillStyle = "#fffff0";
+            ctx.fillRect(0, 0, viewport.width, viewport.height);
+
+            if (titleAlpha > 0) {
+              ctx.globalAlpha = titleAlpha;
+              ctx.fillStyle = "#b8860b";
+              ctx.font = `bold ${Math.floor(viewport.width * 0.07)}px Impact, "Arial Black", sans-serif`;
+              ctx.textAlign = "center";
+              ctx.textBaseline = "middle";
+              ctx.fillText("CLEAR!", viewport.width / 2, viewport.height / 2 - 40);
+            }
+
+            if (recordAlpha > 0) {
+              ctx.globalAlpha = recordAlpha;
+              ctx.fillStyle = "#333";
+              ctx.font = `bold ${Math.floor(viewport.width * 0.03)}px "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif`;
+              ctx.textAlign = "center";
+              ctx.fillText(`記録: ${state.winRecord}`, viewport.width / 2, viewport.height / 2 + 20);
+            }
+
+            if (retryAlpha > 0) {
+              ctx.globalAlpha = retryAlpha * 0.7;
+              ctx.fillStyle = "#888";
+              ctx.font = `${Math.floor(viewport.width * 0.02)}px "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif`;
+              ctx.textAlign = "center";
+              ctx.fillText("Rキーでもう一度", viewport.width / 2, viewport.height / 2 + 60);
             }
 
             ctx.restore();

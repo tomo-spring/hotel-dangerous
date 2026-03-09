@@ -59,14 +59,37 @@
         position: absolute;
         top: 16px;
         right: 20px;
-        font-size: clamp(1rem, 2.2vw, 1.8rem);
-        line-height: 1.3;
-        text-align: left;
-        font-weight: bold;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        font-size: clamp(1rem, 2.4vw, 1.8rem);
+        font-weight: 900;
+        color: #555;
       }
 
       .controls p {
-        margin: 0 0 0.1em;
+        display: flex;
+        align-items: center;
+        gap: 0.4em;
+        margin: 0;
+      }
+
+      .controls kbd {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 1.6em;
+        height: 1.6em;
+        background: #fff;
+        border: 2px solid #aaa;
+        border-bottom: 4px solid #999;
+        border-radius: 6px;
+        color: #333;
+        font-family: inherit;
+        font-size: 1em;
+        font-weight: 900;
+        text-shadow: none;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
       }
     </style>
   </head>
@@ -75,10 +98,10 @@
     <div class="hud">
       <p class="timer" id="timer">00:00.000</p>
       <div class="controls" aria-hidden="true">
-        <p>Q：後ろ足を後ろへ</p>
-        <p>W：後ろ足を前へ</p>
-        <p>O：前足を後ろへ</p>
-        <p>P：前足を前へ</p>
+        <p><kbd>Q</kbd> 後ろの足を前へ</p>
+        <p><kbd>W</kbd> 後ろの足を後ろへ</p>
+        <p><kbd>O</kbd> 前の足を後ろへ</p>
+        <p><kbd>P</kbd> 前の足を前へ</p>
       </div>
     </div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.20.0/matter.min.js"></script>
@@ -771,7 +794,7 @@
 
           scene.enemies = enemyTemplates.map((entry, index) => {
             const x = placements[index];
-            const collisionRadius = entry.radius * 0;
+            const collisionRadius = entry.radius * 1.7;
             const body = Bodies.circle(x, groundHeightAt(x) - collisionRadius, collisionRadius, {
               isStatic: true,
               isSensor: true,
@@ -1273,60 +1296,17 @@
           const baseY = groundHeightAt(x);
           const goalImage = loadedImages.goal;
 
-          if (isDrawableReady(goalImage)) {
-            const width = 180 * (ASSETS.goal.scale || 1);
-            const height = 180 * (ASSETS.goal.scale || 1);
-            ctx.drawImage(
-              goalImage,
-              x - width * ASSETS.goal.anchorX + (ASSETS.goal.offsetX || 0),
-              baseY - height * ASSETS.goal.anchorY + (ASSETS.goal.offsetY || 0),
-              width,
-              height
-            );
-            return;
-          }
+          if (!isDrawableReady(goalImage)) return;
 
-          ctx.save();
-          ctx.translate(x, baseY);
-
-          ctx.fillStyle = "#8d1212";
-          ctx.font = '700 48px Impact, "Arial Black", sans-serif';
-          ctx.textAlign = "center";
-          ctx.strokeStyle = "rgba(255,255,255,0.65)";
-          ctx.lineWidth = 4;
-          ctx.strokeText("風祠", 0, -140);
-          ctx.fillText("風祠", 0, -140);
-
-          ctx.fillStyle = "#c8beb8";
-          ctx.strokeStyle = "#3c3b45";
-          ctx.lineWidth = 3;
-          roundRectPath(ctx, -60, -88, 120, 84, 16);
-          ctx.fill();
-          ctx.stroke();
-
-          ctx.fillStyle = "#8a8583";
-          roundRectPath(ctx, -18, -38, 36, 34, 8);
-          ctx.fill();
-
-          ctx.fillStyle = "#e4c7c7";
-          ctx.beginPath();
-          ctx.moveTo(-78, -84);
-          ctx.lineTo(-60, -98);
-          ctx.lineTo(-42, -84);
-          ctx.closePath();
-          ctx.fill();
-          ctx.beginPath();
-          ctx.moveTo(42, -84);
-          ctx.lineTo(60, -98);
-          ctx.lineTo(78, -84);
-          ctx.closePath();
-          ctx.fill();
-
-          ctx.fillStyle = "#a09ca1";
-          ctx.fillRect(-6, -110, 12, 22);
-          ctx.fillStyle = "#38c9f3";
-          ctx.fillRect(6, -116, 24, 16);
-          ctx.restore();
+          const width = 180 * (ASSETS.goal.scale || 1);
+          const height = 180 * (ASSETS.goal.scale || 1);
+          ctx.drawImage(
+            goalImage,
+            x - width * ASSETS.goal.anchorX + (ASSETS.goal.offsetX || 0),
+            baseY - height * ASSETS.goal.anchorY + (ASSETS.goal.offsetY || 0),
+            width,
+            height
+          );
         }
 
         function drawShadow(x, y, width, alpha) {
@@ -1449,22 +1429,7 @@
         }
 
         function drawTorso() {
-          if (drawBodySprite(player.torso, "torso")) {
-            return true;
-          }
-
-          drawRoundedBody(player.torso, "#8fb6e2", "#445369", 24);
-          ctx.save();
-          ctx.translate(player.torso.position.x, player.torso.position.y);
-          ctx.rotate(player.torso.angle);
-          ctx.fillStyle = "#f7d7c2";
-          roundRectPath(ctx, -10, -114, 20, 30, 10);
-          ctx.fill();
-          ctx.fillStyle = "#3e8cc9";
-          roundRectPath(ctx, -62, 48, 124, 42, 14);
-          ctx.fill();
-          ctx.restore();
-          return false;
+          drawBodySprite(player.torso, "torso");
         }
 
         function drawPlayer() {
@@ -1476,18 +1441,9 @@
           drawShadow(rearTip.x, groundHeightAt(rearTip.x) + 4, 28, 0.16);
           drawShadow(frontTip.x, groundHeightAt(frontTip.x) + 4, 28, 0.18);
 
-          if (!drawBodySprite(rearLeg.leg, rearLeg.leg.plugin.draw.key)) {
-            drawRoundedBody(rearLeg.leg, "#e8c0a8", "#6f594f", 16);
-          }
-
-          if (!drawBodySprite(frontLeg.leg, frontLeg.leg.plugin.draw.key)) {
-            drawRoundedBody(frontLeg.leg, "#f3cbb3", "#765b50", 16);
-          }
-
-          const torsoHasSprite = drawTorso();
-          if (!torsoHasSprite) {
-            drawHead();
-          }
+          drawBodySprite(rearLeg.leg, rearLeg.leg.plugin.draw.key);
+          drawBodySprite(frontLeg.leg, frontLeg.leg.plugin.draw.key);
+          drawTorso();
         }
 
         function drawEnemy(enemy) {
@@ -1495,75 +1451,36 @@
           const x = enemy.body.position.x;
           const y = enemy.body.position.y;
 
-          if (isDrawableReady(image)) {
-            const imgW = image.naturalWidth || image.width;
-            const imgH = image.naturalHeight || image.height;
-            const aspect = imgW / imgH;
-            const h = enemy.radius * 2.8 * (ASSETS.enemy.scale || 1);
-            const w = h * aspect;
-            ctx.save();
-            if (enemy.collapsed) {
-              // Flying enemy: draw at manual position with rotation
-              ctx.translate(enemy.flyX, enemy.flyY);
-              ctx.rotate(enemy.flyRotation || 0);
-              if (enemy.flip) ctx.scale(-1, 1);
-              ctx.drawImage(image, -w / 2, -h / 2, w, h);
-            } else {
-              // Standing enemy: anchored to ground
-              const groundY = groundHeightAt(x);
-              if (enemy.flip) {
-                ctx.translate(x, 0);
-                ctx.scale(-1, 1);
-                ctx.translate(-x, 0);
-              }
-              ctx.drawImage(
-                image,
-                x - w * ASSETS.enemy.anchorX + (ASSETS.enemy.offsetX || 0),
-                groundY - h,
-                w,
-                h
-              );
-            }
-            ctx.restore();
-            return;
-          }
+          if (!isDrawableReady(image)) return;
 
+          const imgW = image.naturalWidth || image.width;
+          const imgH = image.naturalHeight || image.height;
+          const aspect = imgW / imgH;
+          const h = enemy.radius * 2.8 * (ASSETS.enemy.scale || 1);
+          const w = h * aspect;
           ctx.save();
-          ctx.translate(x, y);
-          ctx.fillStyle = "rgba(9, 41, 82, 0.92)";
-          ctx.strokeStyle = "rgba(4, 16, 34, 0.8)";
-          ctx.lineWidth = 2;
-
-          ctx.beginPath();
-          ctx.arc(0, -enemy.radius * 0.55, enemy.radius * 0.44, 0, Math.PI * 2);
-          ctx.fill();
-
-          ctx.beginPath();
-          ctx.moveTo(-enemy.radius * 0.32, -enemy.radius * 0.2);
-          ctx.lineTo(0, -enemy.radius * 0.78);
-          ctx.lineTo(enemy.radius * 0.32, -enemy.radius * 0.2);
-          ctx.quadraticCurveTo(enemy.radius * 0.5, enemy.radius * 0.44, 0, enemy.radius * 0.52);
-          ctx.quadraticCurveTo(-enemy.radius * 0.5, enemy.radius * 0.44, -enemy.radius * 0.32, -enemy.radius * 0.2);
-          ctx.closePath();
-          ctx.fill();
-          ctx.stroke();
-
-          ctx.strokeStyle = "#143f76";
-          ctx.lineWidth = 3;
-          ctx.beginPath();
-          ctx.moveTo(-enemy.radius * 0.34, enemy.radius * 0.18);
-          ctx.lineTo(-enemy.radius * 0.44, enemy.radius * 1.02);
-          ctx.moveTo(0, enemy.radius * 0.28);
-          ctx.lineTo(0, enemy.radius * 1.1);
-          ctx.moveTo(enemy.radius * 0.34, enemy.radius * 0.18);
-          ctx.lineTo(enemy.radius * 0.44, enemy.radius * 1.02);
-          ctx.stroke();
-
-          ctx.fillStyle = "#d1f2ff";
-          ctx.beginPath();
-          ctx.arc(-enemy.radius * 0.12, -enemy.radius * 0.58, 2.2, 0, Math.PI * 2);
-          ctx.arc(enemy.radius * 0.12, -enemy.radius * 0.58, 2.2, 0, Math.PI * 2);
-          ctx.fill();
+          if (enemy.collapsed) {
+            // Flying enemy: draw at manual position with rotation
+            ctx.translate(enemy.flyX, enemy.flyY);
+            ctx.rotate(enemy.flyRotation || 0);
+            if (enemy.flip) ctx.scale(-1, 1);
+            ctx.drawImage(image, -w / 2, -h / 2, w, h);
+          } else {
+            // Standing enemy: anchored to ground
+            const groundY = groundHeightAt(x);
+            if (enemy.flip) {
+              ctx.translate(x, 0);
+              ctx.scale(-1, 1);
+              ctx.translate(-x, 0);
+            }
+            ctx.drawImage(
+              image,
+              x - w * ASSETS.enemy.anchorX + (ASSETS.enemy.offsetX || 0),
+              groundY - h,
+              w,
+              h
+            );
+          }
           ctx.restore();
         }
 
@@ -1608,7 +1525,7 @@
           timerEl.textContent = formatTimer(state.timer);
 
           const hudEl = document.querySelector(".hud");
-          hudEl.style.display = state.mode === "won" ? "none" : "";
+          hudEl.style.display = (state.mode === "won" || state.mode === "lost") ? "none" : "";
 
           if (state.mode === "lost") {
             const elapsed = state.worldTime - state.lostAt;
@@ -1705,13 +1622,6 @@
               drawConfetti(ctx, state.winConfetti);
             }
 
-            // Spawn extra confetti bursts
-            if (elapsed > 1.0 && elapsed < 1.05 && state.winConfetti) {
-              state.winConfetti.push(...createConfetti(100));
-            }
-            if (elapsed > 2.0 && elapsed < 2.05 && state.winConfetti) {
-              state.winConfetti.push(...createConfetti(60));
-            }
 
             // "CLEAR!" title with scale bounce and glow
             const titleStart = 0.3;

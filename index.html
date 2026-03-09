@@ -10,9 +10,6 @@
     <style>
       :root {
         color-scheme: only light;
-        --hud-shadow:
-          0 4px 0 rgba(12, 17, 35, 0.95),
-          0 0 18px rgba(255, 255, 255, 0.25);
       }
 
       * {
@@ -45,7 +42,7 @@
         position: fixed;
         inset: 0;
         pointer-events: none;
-        color: #f9fbff;
+        color: #000000;
       }
 
       .timer {
@@ -56,93 +53,20 @@
         font-size: clamp(2.5rem, 5vw, 5rem);
         line-height: 0.92;
         letter-spacing: 0.04em;
-        text-shadow: var(--hud-shadow);
       }
 
       .controls {
         position: absolute;
-        top: 30px;
-        right: 34px;
-        width: min(540px, 42vw);
-        font-size: clamp(1rem, 2.15vw, 2.85rem);
-        line-height: 1.18;
+        top: 16px;
+        right: 20px;
+        font-size: clamp(1rem, 2.2vw, 1.8rem);
+        line-height: 1.3;
         text-align: left;
-        text-shadow: var(--hud-shadow);
+        font-weight: bold;
       }
 
       .controls p {
-        margin: 0 0 0.3em;
-      }
-
-      .status {
-        position: absolute;
-        left: 50%;
-        bottom: 26px;
-        transform: translateX(-50%);
-        padding: 0.65rem 1rem;
-        border-radius: 999px;
-        font-size: clamp(0.95rem, 1.65vw, 1.7rem);
-        line-height: 1;
-        letter-spacing: 0.04em;
-        color: #fffef0;
-        background: rgba(18, 21, 30, 0.34);
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        box-shadow:
-          0 18px 40px rgba(0, 0, 0, 0.18),
-          inset 0 1px 0 rgba(255, 255, 255, 0.12);
-        backdrop-filter: blur(8px);
-        text-shadow: 0 2px 0 rgba(0, 0, 0, 0.7);
-        white-space: nowrap;
-      }
-
-      .progress {
-        position: absolute;
-        left: 32px;
-        right: 32px;
-        bottom: 82px;
-        height: 16px;
-        border-radius: 999px;
-        overflow: hidden;
-        background: rgba(255, 255, 255, 0.16);
-        box-shadow:
-          inset 0 1px 3px rgba(0, 0, 0, 0.24),
-          0 10px 28px rgba(0, 0, 0, 0.12);
-      }
-
-      .progress > span {
-        display: block;
-        height: 100%;
-        width: 0;
-        border-radius: inherit;
-        background:
-          linear-gradient(
-            90deg,
-            rgba(255, 246, 173, 0.95),
-            rgba(255, 144, 107, 0.94) 52%,
-            rgba(255, 90, 92, 0.92)
-          );
-        box-shadow:
-          0 0 20px rgba(255, 134, 96, 0.42),
-          inset 0 1px 0 rgba(255, 255, 255, 0.45);
-        transition: width 120ms linear;
-      }
-
-      @media (max-width: 900px) {
-        .controls {
-          width: calc(100vw - 60px);
-          top: 22px;
-          right: 30px;
-        }
-
-        .status {
-          white-space: normal;
-          text-align: center;
-          max-width: calc(100vw - 40px);
-        }
-
-        .progress {
-          bottom: 102px;
-        }
+        margin: 0 0 0.1em;
       }
     </style>
   </head>
@@ -151,13 +75,10 @@
     <div class="hud">
       <p class="timer" id="timer">00:00.000</p>
       <div class="controls" aria-hidden="true">
-        <p>←→: 後ろ脚</p>
-        <p>↑↓: 前脚</p>
-        <p>R: リトライ</p>
-      </div>
-      <div class="progress"><span id="progress-bar"></span></div>
-      <div class="status" id="status">
-        矢印キーで巡礼者の二本脚を操り、守人を踏まずに風祠へ辿り着け。
+        <p>Q：後ろ足を後ろへ</p>
+        <p>W：後ろ足を前へ</p>
+        <p>O：前足を後ろへ</p>
+        <p>P：前足を前へ</p>
       </div>
     </div>
     <script src="./node_modules/matter-js/build/matter.min.js"></script>
@@ -168,12 +89,7 @@
         const canvas = document.getElementById("game");
         const ctx = canvas.getContext("2d");
         const timerEl = document.getElementById("timer");
-        const statusEl = document.getElementById("status");
-        const progressBarEl = document.getElementById("progress-bar");
-
         if (!window.Matter) {
-          statusEl.textContent =
-            "物理エンジンの読み込みに失敗しました。ネット接続を確認して再読み込みしてください。";
           return;
         }
 
@@ -183,14 +99,15 @@
          * 見た目の合わせ込みを行います。必要なら scale / offsetX / offsetY も調整してください。
          */
         const ASSETS = {
-          background: { src: null },
+          background: { src: "./assets/background.png" },
           torso: {
             src: "./assets/player-body.png",
             anchorX: 0.39,
-            anchorY: 0.72,
+            anchorY: 0.8,
             scale: 1,
-            offsetY: 10,
-            drawHeight: 300,
+            offsetX: 10,
+            offsetY: 28,
+            drawHeight: 360,
             fit: "height",
             trimAlpha: true,
             flipX: true,
@@ -199,9 +116,10 @@
           leg: { src: null, anchorX: 0.5, anchorY: 0.5, scale: 1 },
           legRear: {
             src: "./assets/player-leg-rear.png",
-            anchorX: 0.63,
-            anchorY: 0.5,
+            anchorX: 0.5,
+            anchorY: 0,
             scale: 1,
+            offsetY: -152,
             drawHeight: 304,
             fit: "height",
             trimAlpha: true,
@@ -209,9 +127,10 @@
           },
           legFront: {
             src: "./assets/player-leg-front.png",
-            anchorX: 0.63,
-            anchorY: 0.5,
+            anchorX: 0.5,
+            anchorY: 0,
             scale: 1,
+            offsetY: -152,
             drawHeight: 304,
             fit: "height",
             trimAlpha: true,
@@ -220,8 +139,8 @@
           thigh: { src: null, anchorX: 0.5, anchorY: 0.5, scale: 1 },
           shin: { src: null, anchorX: 0.5, anchorY: 0.5, scale: 1 },
           foot: { src: null, anchorX: 0.5, anchorY: 0.5, scale: 1 },
-          enemy: { src: null, anchorX: 0.5, anchorY: 0.7, scale: 1 },
-          goal: { src: null, anchorX: 0.5, anchorY: 1, scale: 1 },
+          enemy: { src: "./assets/moribito.png", anchorX: 0.5, anchorY: 1, scale: 1.7 },
+          goal: { src: "./assets/goal.png", anchorX: 0.5, anchorY: 1, scale: 1.5, offsetY: 20 },
           ground: { src: null },
         };
 
@@ -250,7 +169,7 @@
         ];
 
         const enemyTemplates = [
-          { radius: 18 },
+          { radius: 18, flip: true },
           { radius: 20 },
         ];
 
@@ -463,27 +382,10 @@
         }
 
         function groundHeightAt(x) {
-          const clampedX = clamp(x, 0, scene.width);
-          let height =
-            groundBase() +
-            Math.sin(clampedX * 0.0082) * 10 +
-            Math.sin(clampedX * 0.026) * 4;
-
-          for (const bump of terrainBumps) {
-            const distance = Math.abs(clampedX - bump.x);
-            if (distance > bump.width) {
-              continue;
-            }
-            const t = 1 - distance / bump.width;
-            const curve = t * t * (3 - 2 * t);
-            height -= bump.height * curve;
-          }
-
-          return height;
+          return groundBase();
         }
 
         function setStatus(text) {
-          statusEl.textContent = text;
         }
 
         function formatTimer(totalSeconds) {
@@ -528,7 +430,7 @@
             const angle = Math.atan2(y - previousY, x - previousX);
 
             terrainBodies.push(
-              Bodies.rectangle(centerX, centerY, length + 8, 40, {
+              Bodies.rectangle(centerX, centerY + 20, length + 8, 40, {
                 isStatic: true,
                 angle,
                 label: "ground",
@@ -571,16 +473,20 @@
         function createPlayer() {
           const collisionGroup = Body.nextGroup(true);
           const baseX = 220;
-          const leftFootX = baseX - 30;
-          const rightFootX = baseX + 30;
-          const leftFootY = groundHeightAt(leftFootX) - 8;
-          const rightFootY = groundHeightAt(rightFootX) - 8;
           const legWidth = 34;
           const legHeight = 304;
           const torsoWidth = 126;
           const torsoHeight = 164;
           const headRadius = 30;
-          const torsoY = Math.min(leftFootY, rightFootY) - 374;
+          const hipOffsetX = 26;
+          const legHalfHeight = legHeight * 0.5;
+          const leftFootX = baseX - hipOffsetX;
+          const rightFootX = baseX + hipOffsetX;
+          const leftFootY = groundHeightAt(leftFootX);
+          const rightFootY = groundHeightAt(rightFootX);
+          const torsoJointY = torsoHeight * 0.5 - torsoHeight / 5;
+          const legJointY = -legHalfHeight;
+          const torsoY = Math.min(leftFootY, rightFootY) - legHeight - torsoJointY;
 
           const common = {
             collisionFilter: { group: collisionGroup },
@@ -592,6 +498,7 @@
               label: "player/torso",
               chamfer: { radius: 20 },
               density: 0.0017,
+              inertia: Infinity,
               frictionAir: 0.02,
             });
 
@@ -601,9 +508,12 @@
             ASSETS.torso.drawWidth || torsoWidth,
             ASSETS.torso.drawHeight || torsoHeight
           );
+          Body.setInertia(torso, Infinity);
+          Body.setAngle(torso, 0);
+          Body.setAngularVelocity(torso, 0);
 
           const leftLeg = markDrawable(
-            Bodies.rectangle(leftFootX, leftFootY - legHeight * 0.5, legWidth, legHeight, {
+            Bodies.rectangle(leftFootX, leftFootY - legHalfHeight, legWidth, legHeight, {
               ...common,
               label: "player/left-leg",
               chamfer: { radius: 16 },
@@ -618,7 +528,7 @@
           );
 
           const rightLeg = markDrawable(
-            Bodies.rectangle(rightFootX, rightFootY - legHeight * 0.5, legWidth, legHeight, {
+            Bodies.rectangle(rightFootX, rightFootY - legHalfHeight, legWidth, legHeight, {
               ...common,
               label: "player/right-leg",
               chamfer: { radius: 16 },
@@ -635,18 +545,18 @@
           const constraints = [
             Constraint.create({
               bodyA: torso,
-              pointA: { x: -16, y: 88 },
+              pointA: { x: -hipOffsetX, y: torsoJointY },
               bodyB: leftLeg,
-              pointB: { x: 0, y: -legHeight * 0.5 + 8 },
+              pointB: { x: 0, y: legJointY },
               stiffness: 0.985,
               damping: 0.2,
               length: 0,
             }),
             Constraint.create({
               bodyA: torso,
-              pointA: { x: 16, y: 88 },
+              pointA: { x: hipOffsetX, y: torsoJointY },
               bodyB: rightLeg,
-              pointB: { x: 0, y: -legHeight * 0.5 + 8 },
+              pointB: { x: 0, y: legJointY },
               stiffness: 0.985,
               damping: 0.2,
               length: 0,
@@ -736,7 +646,8 @@
 
           scene.enemies = enemyTemplates.map((entry, index) => {
             const x = placements[index];
-            const body = Bodies.circle(x, groundHeightAt(x) - entry.radius - 6, entry.radius, {
+            const collisionRadius = entry.radius * 1.7;
+            const body = Bodies.circle(x, groundHeightAt(x) - collisionRadius, collisionRadius, {
               isStatic: true,
               isSensor: true,
               label: `enemy/${index}`,
@@ -754,7 +665,7 @@
           });
         }
 
-        function collapseEnemy(enemy) {
+        function collapseEnemy(enemy, playerBody) {
           if (enemy.collapsed) {
             return;
           }
@@ -762,40 +673,19 @@
           enemy.collapsed = true;
           Composite.remove(engine.world, enemy.body);
 
-          const debrisPalette = ["#143f76", "#1d5d9e", "#d1f2ff", "#0b2347", "#79b9ef"];
-          const pieceCount = 8;
+          const vel = playerBody.velocity;
+          const speed = Math.hypot(vel.x, vel.y);
+          const kickStrength = Math.max(speed * 80, 300);
+          const dx = enemy.body.position.x - playerBody.position.x;
+          const dist = Math.abs(dx) || 1;
 
-          for (let i = 0; i < pieceCount; i += 1) {
-            const size = 8 + (i % 3) * 4;
-            const piece = Bodies.rectangle(
-              enemy.body.position.x + (Math.random() - 0.5) * 14,
-              enemy.body.position.y + (Math.random() - 0.5) * 10,
-              size,
-              size + (i % 2) * 3,
-              {
-                label: "enemy-debris",
-                restitution: 0.18,
-                friction: 0.9,
-                frictionAir: 0.018,
-              }
-            );
-
-            piece.plugin.debris = {
-              color: debrisPalette[i % debrisPalette.length],
-              width: size,
-              height: size + (i % 2) * 3,
-              bornAt: state.worldTime,
-              life: 1.4,
-            };
-
-            Body.setVelocity(piece, {
-              x: (Math.random() - 0.5) * 8,
-              y: -2 - Math.random() * 4,
-            });
-            Body.setAngularVelocity(piece, (Math.random() - 0.5) * 0.45);
-            Composite.add(engine.world, piece);
-            scene.enemyDebris.push(piece);
-          }
+          enemy.flyX = enemy.body.position.x;
+          enemy.flyY = enemy.body.position.y;
+          enemy.flyVx = (dx / dist) * kickStrength * 0.5 + vel.x * 20;
+          enemy.flyVy = -kickStrength;
+          enemy.flyRotation = 0;
+          enemy.flyAngularVel = (Math.random() - 0.5) * 0.15;
+          enemy.flewAt = state.worldTime;
         }
 
         function updateEnemyDebris() {
@@ -809,6 +699,19 @@
           });
         }
 
+
+        function updateFlyingEnemies(dtMs) {
+          const dt = dtMs / 1000;
+          const gravity = 800;
+          for (const enemy of scene.enemies) {
+            if (!enemy.collapsed || enemy.flyX === undefined) continue;
+            enemy.flyVy += gravity * dt;
+            enemy.flyX += enemy.flyVx * dt;
+            enemy.flyY += enemy.flyVy * dt;
+            enemy.flyRotation += enemy.flyAngularVel;
+          }
+        }
+
         function applyRelativeAngleMotor(parent, child, currentAngle, targetAngle, stiffness, damping, maxDelta) {
           const relativeVelocity = child.angularVelocity - parent.angularVelocity;
           const correction = clamp(
@@ -818,7 +721,9 @@
           );
 
           Body.setAngularVelocity(child, child.angularVelocity + correction);
-          Body.setAngularVelocity(parent, parent.angularVelocity - correction * 0.25);
+          if (Number.isFinite(parent.inertia)) {
+            Body.setAngularVelocity(parent, parent.angularVelocity - correction * 0.25);
+          }
         }
 
         function syncLegMotorState(leg, resetTarget = false) {
@@ -909,8 +814,8 @@
             return;
           }
 
-          const rearInput = keys.arrowright ? 1 : keys.arrowleft ? -1 : 0;
-          const frontInput = keys.arrowup ? 1 : keys.arrowdown ? -1 : 0;
+          const rearInput = keys.w ? 1 : keys.q ? -1 : 0;
+          const frontInput = keys.p ? 1 : keys.o ? -1 : 0;
 
           if ((rearInput || frontInput) && state.mode === "ready") {
             state.mode = "playing";
@@ -958,9 +863,10 @@
 
             if (touchesEnemy) {
               const enemyBody = labels[0].startsWith("enemy/") ? bodyA : bodyB;
+              const playerBodyHit = labels[0].startsWith("player/") ? bodyA : bodyB;
               const enemy = scene.enemies.find((entry) => entry.body === enemyBody);
               if (enemy && !enemy.collapsed) {
-                collapseEnemy(enemy);
+                collapseEnemy(enemy, playerBodyHit);
                 lose("守人を崩した。ゲームオーバー。");
               }
               return;
@@ -990,9 +896,15 @@
           state.cameraX += (target - state.cameraX) * 0.12;
         }
 
+        function lockTorsoRotation() {
+          Body.setAngle(player.torso, 0);
+          Body.setAngularVelocity(player.torso, 0);
+        }
+
         function settleInitialPose() {
           for (let i = 0; i < 8; i += 1) {
             Engine.update(engine, 1000 / 60);
+            lockTorsoRotation();
           }
 
           for (const leg of player.legs) {
@@ -1004,6 +916,7 @@
             Body.setVelocity(body, { x: 0, y: 0 });
             Body.setAngularVelocity(body, 0);
           }
+          lockTorsoRotation();
         }
 
         function resetGame() {
@@ -1039,8 +952,10 @@
           state.worldTime += deltaSeconds;
           updateWind(deltaSeconds);
           updateEnemyDebris();
+          updateFlyingEnemies(deltaMs);
           controlPlayer();
           Engine.update(engine, deltaMs);
+          lockTorsoRotation();
 
           if (state.mode === "playing") {
             state.timer += deltaSeconds;
@@ -1052,42 +967,17 @@
 
         function drawBackground() {
           const backgroundImage = loadedImages.background;
-          if (isDrawableReady(backgroundImage)) {
-            ctx.drawImage(backgroundImage, 0, 0, viewport.width, viewport.height);
-            return;
-          }
-
-          const sky = ctx.createLinearGradient(0, 0, 0, viewport.height);
-          sky.addColorStop(0, "#58c7c4");
-          sky.addColorStop(0.42, "#94d5db");
-          sky.addColorStop(0.82, "#d7dce7");
-          sky.addColorStop(1, "#f2dfe6");
-          ctx.fillStyle = sky;
+          ctx.fillStyle = "#dff5ff";
           ctx.fillRect(0, 0, viewport.width, viewport.height);
-
-          const haze = ctx.createRadialGradient(
-            viewport.width * 0.18,
-            viewport.height * 0.14,
-            10,
-            viewport.width * 0.18,
-            viewport.height * 0.14,
-            viewport.width * 0.33
-          );
-          haze.addColorStop(0, "rgba(255, 249, 232, 0.42)");
-          haze.addColorStop(1, "rgba(255, 249, 232, 0)");
-          ctx.fillStyle = haze;
-          ctx.beginPath();
-          ctx.arc(
-            viewport.width * 0.18,
-            viewport.height * 0.14,
-            viewport.width * 0.33,
-            0,
-            Math.PI * 2
-          );
-          ctx.fill();
-
-          drawParallaxClouds(0.17, "rgba(255,255,255,0.28)");
-          drawParallaxRidges();
+          if (isDrawableReady(backgroundImage)) {
+            const imgW = backgroundImage.naturalWidth || backgroundImage.width;
+            const imgH = backgroundImage.naturalHeight || backgroundImage.height;
+            const scale = viewport.width / imgW;
+            const dw = viewport.width;
+            const dh = imgH * scale;
+            const dy = viewport.height - dh;
+            ctx.drawImage(backgroundImage, 0, dy, dw, dh);
+          }
         }
 
         function drawParallaxClouds(parallax, color) {
@@ -1137,50 +1027,20 @@
         }
 
         function drawGround() {
-          const groundImage = loadedImages.ground;
-          if (isDrawableReady(groundImage)) {
-            ctx.drawImage(
-              groundImage,
-              state.cameraX,
-              groundBase() - 120,
-              viewport.width,
-              160
-            );
-            return;
-          }
+          const y = groundBase();
+          const x = state.cameraX;
+          const w = viewport.width;
+          const h = viewport.height - y;
 
-          const startX = Math.floor(state.cameraX / 24) * 24 - 48;
-          const endX = state.cameraX + viewport.width + 48;
+          ctx.fillStyle = "#B8956A";
+          ctx.fillRect(x, y, w, h);
 
+          ctx.strokeStyle = "#4A2E14";
+          ctx.lineWidth = 2;
           ctx.beginPath();
-          ctx.moveTo(startX, viewport.height);
-          ctx.lineTo(startX, groundHeightAt(startX));
-          for (let x = startX; x <= endX; x += 24) {
-            ctx.lineTo(x, groundHeightAt(x));
-          }
-          ctx.lineTo(endX, viewport.height);
-          ctx.closePath();
-
-          const dirt = ctx.createLinearGradient(0, groundBase() - 8, 0, viewport.height);
-          dirt.addColorStop(0, "#f1c788");
-          dirt.addColorStop(0.2, "#d49b54");
-          dirt.addColorStop(1, "#5d3d12");
-          ctx.fillStyle = dirt;
-          ctx.fill();
-
-          ctx.save();
-          ctx.beginPath();
-          ctx.moveTo(startX, groundHeightAt(startX));
-          for (let x = startX; x <= endX; x += 18) {
-            ctx.lineTo(x, groundHeightAt(x) - 8 - Math.sin(x * 0.12) * 2);
-          }
-          for (let x = endX; x >= startX; x -= 18) {
-            ctx.lineTo(x, groundHeightAt(x) + 16);
-          }
-          ctx.closePath();
-          ctx.fillStyle = "#29940d";
-          ctx.fill();
-          ctx.restore();
+          ctx.moveTo(x, y);
+          ctx.lineTo(x + w, y);
+          ctx.stroke();
         }
 
         function drawGoal() {
@@ -1406,23 +1266,40 @@
         }
 
         function drawEnemy(enemy) {
-          if (enemy.collapsed) {
-            return;
-          }
-
           const image = loadedImages.enemy;
           const x = enemy.body.position.x;
           const y = enemy.body.position.y;
 
           if (isDrawableReady(image)) {
-            const size = enemy.radius * 2.8 * (ASSETS.enemy.scale || 1);
-            ctx.drawImage(
-              image,
-              x - size * ASSETS.enemy.anchorX + (ASSETS.enemy.offsetX || 0),
-              y - size * ASSETS.enemy.anchorY + (ASSETS.enemy.offsetY || 0),
-              size,
-              size
-            );
+            const imgW = image.naturalWidth || image.width;
+            const imgH = image.naturalHeight || image.height;
+            const aspect = imgW / imgH;
+            const h = enemy.radius * 2.8 * (ASSETS.enemy.scale || 1);
+            const w = h * aspect;
+            ctx.save();
+            if (enemy.collapsed) {
+              // Flying enemy: draw at manual position with rotation
+              ctx.translate(enemy.flyX, enemy.flyY);
+              ctx.rotate(enemy.flyRotation || 0);
+              if (enemy.flip) ctx.scale(-1, 1);
+              ctx.drawImage(image, -w / 2, -h / 2, w, h);
+            } else {
+              // Standing enemy: anchored to ground
+              const groundY = groundHeightAt(x);
+              if (enemy.flip) {
+                ctx.translate(x, 0);
+                ctx.scale(-1, 1);
+                ctx.translate(-x, 0);
+              }
+              ctx.drawImage(
+                image,
+                x - w * ASSETS.enemy.anchorX + (ASSETS.enemy.offsetX || 0),
+                groundY - h,
+                w,
+                h
+              );
+            }
+            ctx.restore();
             return;
           }
 
@@ -1489,12 +1366,10 @@
 
           ctx.save();
           ctx.translate(-state.cameraX, 0);
-          drawGoal();
           for (const enemy of scene.enemies) {
-            if (enemy.collapsed) {
-              continue;
+            if (!enemy.collapsed) {
+              drawShadow(enemy.body.position.x, groundHeightAt(enemy.body.position.x) + 3, enemy.radius * 1.25, 0.16);
             }
-            drawShadow(enemy.body.position.x, groundHeightAt(enemy.body.position.x) + 3, enemy.radius * 1.25, 0.16);
             drawEnemy(enemy);
           }
           for (const piece of scene.enemyDebris) {
@@ -1502,11 +1377,10 @@
           }
           drawPlayer();
           drawGround();
+          drawGoal();
           ctx.restore();
 
           timerEl.textContent = formatTimer(state.timer);
-          const progress = clamp(player.torso.position.x / scene.goalX, 0, 1) * 100;
-          progressBarEl.style.width = `${progress}%`;
         }
 
         function loop(timestamp) {
@@ -1523,7 +1397,7 @@
 
         window.addEventListener("keydown", (event) => {
           const key = event.key.toLowerCase();
-          if (["arrowleft", "arrowright", "arrowup", "arrowdown", "r"].includes(key)) {
+          if (["q", "w", "o", "p", "r"].includes(key)) {
             event.preventDefault();
           }
 

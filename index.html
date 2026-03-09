@@ -848,6 +848,74 @@
           state.mode = "won";
           state.wonAt = state.worldTime;
           state.winRecord = formatTimer(state.timer);
+          state.winConfetti = createConfetti(200);
+          state.winScreenShake = 1.0;
+        }
+
+        function createConfetti(count) {
+          const particles = [];
+          const colors = [
+            "#ff3e3e", "#ff9f1c", "#ffdc00", "#2ecc40",
+            "#0074d9", "#b10dc9", "#ff69b4", "#f012be",
+            "#fffa65", "#01ff70", "#7fdbff", "#ff851b",
+          ];
+          const shapes = ["rect", "circle", "triangle"];
+          for (let i = 0; i < count; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 200 + Math.random() * 600;
+            particles.push({
+              x: viewport.width / 2 + (Math.random() - 0.5) * 100,
+              y: viewport.height / 2 + (Math.random() - 0.5) * 100,
+              vx: Math.cos(angle) * speed,
+              vy: Math.sin(angle) * speed - 300,
+              rotation: Math.random() * Math.PI * 2,
+              rotSpeed: (Math.random() - 0.5) * 12,
+              color: colors[Math.floor(Math.random() * colors.length)],
+              shape: shapes[Math.floor(Math.random() * shapes.length)],
+              size: 4 + Math.random() * 8,
+              life: 3 + Math.random() * 3,
+              born: 0,
+            });
+          }
+          return particles;
+        }
+
+        function updateConfetti(particles, dt) {
+          for (const p of particles) {
+            p.born += dt;
+            p.vy += 400 * dt;
+            p.vx *= 0.995;
+            p.x += p.vx * dt;
+            p.y += p.vy * dt;
+            p.rotation += p.rotSpeed * dt;
+          }
+        }
+
+        function drawConfetti(ctx, particles) {
+          for (const p of particles) {
+            const fade = clamp(1 - p.born / p.life, 0, 1);
+            if (fade <= 0) continue;
+            ctx.save();
+            ctx.globalAlpha = fade;
+            ctx.translate(p.x, p.y);
+            ctx.rotate(p.rotation);
+            ctx.fillStyle = p.color;
+            if (p.shape === "rect") {
+              ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2);
+            } else if (p.shape === "circle") {
+              ctx.beginPath();
+              ctx.arc(0, 0, p.size / 2, 0, Math.PI * 2);
+              ctx.fill();
+            } else {
+              ctx.beginPath();
+              ctx.moveTo(0, -p.size / 2);
+              ctx.lineTo(p.size / 2, p.size / 2);
+              ctx.lineTo(-p.size / 2, p.size / 2);
+              ctx.closePath();
+              ctx.fill();
+            }
+            ctx.restore();
+          }
         }
 
         function handleCollisions(event) {
@@ -890,12 +958,6 @@
         }
 
         function updateCamera() {
-          const target = clamp(
-            player.torso.position.x - viewport.width * 0.28,
-            0,
-            Math.max(0, scene.width - viewport.width)
-          );
-          state.cameraX += (target - state.cameraX) * 0.12;
         }
 
         function lockTorsoRotation() {
@@ -970,6 +1032,11 @@
         function update(deltaMs) {
           const deltaSeconds = deltaMs / 1000;
           state.worldTime += deltaSeconds;
+
+          if (state.mode === "won") {
+            return;
+          }
+
           updateWind(deltaSeconds);
           updateEnemyDebris();
           updateFlyingEnemies(deltaMs);
@@ -1402,6 +1469,9 @@
 
           timerEl.textContent = formatTimer(state.timer);
 
+          const hudEl = document.querySelector(".hud");
+          hudEl.style.display = state.mode === "won" ? "none" : "";
+
           if (state.mode === "lost") {
             const elapsed = state.worldTime - state.lostAt;
             const overlayAlpha = Math.min(elapsed / 2.5, 0.85);
@@ -1435,42 +1505,166 @@
 
           if (state.mode === "won") {
             const elapsed = state.worldTime - state.wonAt;
-            const overlayAlpha = Math.min(elapsed / 2.0, 0.6);
-            const titleAlpha = Math.min(Math.max((elapsed - 0.8) / 1.0, 0), 1);
-            const recordAlpha = Math.min(Math.max((elapsed - 1.8) / 1.0, 0), 1);
-            const retryAlpha = Math.min(Math.max((elapsed - 2.8) / 1.0, 0), 1);
+            const dt = (state.lastDelta || 16) / 1000;
 
+            // Update confetti
+            if (state.winConfetti) updateConfetti(state.winConfetti, dt);
+
+            // Screen shake (decays over time)
+            if (state.winScreenShake > 0) {
+              state.winScreenShake = Math.max(0, state.winScreenShake - dt * 1.5);
+              const shakeAmt = state.winScreenShake * 15;
+              ctx.save();
+              ctx.translate(
+                (Math.random() - 0.5) * shakeAmt,
+                (Math.random() - 0.5) * shakeAmt
+              );
+            }
+
+            // Phase 1: White flash burst (instant, then fades)
+            if (elapsed < 0.5) {
+              ctx.save();
+              ctx.globalAlpha = Math.max(0, 1 - elapsed / 0.5);
+              ctx.fillStyle = "#fff";
+              ctx.fillRect(0, 0, viewport.width, viewport.height);
+              ctx.restore();
+            }
+
+            // Overlay fade-in
+            const overlayAlpha = Math.min(elapsed / 1.5, 0.75);
             ctx.save();
             ctx.globalAlpha = overlayAlpha;
-            ctx.fillStyle = "#fffff0";
+            ctx.fillStyle = "#ffffff";
             ctx.fillRect(0, 0, viewport.width, viewport.height);
+            ctx.restore();
 
+            // Radiating light rays
+            if (elapsed > 0.2 && elapsed < 4.0) {
+              const rayAlpha = Math.min((elapsed - 0.2) / 0.5, 1) * 0.15;
+              ctx.save();
+              ctx.globalAlpha = rayAlpha;
+              ctx.translate(viewport.width / 2, viewport.height / 2 - 30);
+              const rayCount = 12;
+              for (let i = 0; i < rayCount; i++) {
+                const angle = (i / rayCount) * Math.PI * 2 + elapsed * 0.3;
+                ctx.save();
+                ctx.rotate(angle);
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                const rayLen = viewport.width * 0.8;
+                ctx.lineTo(-30, rayLen);
+                ctx.lineTo(30, rayLen);
+                ctx.closePath();
+                ctx.fillStyle = "#ffd700";
+                ctx.fill();
+                ctx.restore();
+              }
+              ctx.restore();
+            }
+
+            // Confetti
+            if (state.winConfetti) {
+              drawConfetti(ctx, state.winConfetti);
+            }
+
+            // Spawn extra confetti bursts
+            if (elapsed > 1.0 && elapsed < 1.05 && state.winConfetti) {
+              state.winConfetti.push(...createConfetti(100));
+            }
+            if (elapsed > 2.0 && elapsed < 2.05 && state.winConfetti) {
+              state.winConfetti.push(...createConfetti(60));
+            }
+
+            // "CLEAR!" title with scale bounce and glow
+            const titleStart = 0.3;
+            const titleAlpha = Math.min(Math.max((elapsed - titleStart) / 0.4, 0), 1);
             if (titleAlpha > 0) {
-              ctx.globalAlpha = titleAlpha;
-              ctx.fillStyle = "#b8860b";
-              ctx.font = `bold ${Math.floor(viewport.width * 0.07)}px Impact, "Arial Black", sans-serif`;
+              ctx.save();
               ctx.textAlign = "center";
               ctx.textBaseline = "middle";
-              ctx.fillText("CLEAR!", viewport.width / 2, viewport.height / 2 - 40);
+              const fontSize = Math.floor(viewport.width * 0.09);
+              ctx.font = `bold ${fontSize}px Impact, "Arial Black", sans-serif`;
+
+              // Scale bounce effect
+              const titleAge = elapsed - titleStart;
+              let scale = 1;
+              if (titleAge < 0.3) {
+                scale = 1.5 - 0.5 * (titleAge / 0.3); // overshoot then settle
+              } else if (titleAge < 0.5) {
+                scale = 1 + 0.05 * Math.sin((titleAge - 0.3) / 0.2 * Math.PI);
+              }
+
+              const cx = viewport.width / 2;
+              const cy = viewport.height / 2 - 70;
+              ctx.translate(cx, cy);
+              ctx.scale(scale, scale);
+
+              // Main text with gradient (no shadow)
+              ctx.globalAlpha = titleAlpha;
+              ctx.fillStyle = "#f0c040";
+              ctx.fillText("CLEAR!", 0, 0);
+
+              ctx.restore();
             }
 
+            // Sparkle particles around the title
+            if (elapsed > 0.5 && elapsed < 5.0) {
+              ctx.save();
+              const sparkleCount = 8;
+              for (let i = 0; i < sparkleCount; i++) {
+                const t = elapsed * 2 + i * 1.3;
+                const sx = viewport.width / 2 + Math.sin(t * 1.7 + i) * viewport.width * 0.2;
+                const sy = viewport.height / 2 - 70 + Math.cos(t * 1.3 + i * 2) * 50;
+                const sparkleSize = (3 + Math.sin(t * 5) * 3) * (1 + Math.sin(elapsed * 3) * 0.3);
+                const sparkleAlpha = 0.5 + Math.sin(t * 4) * 0.5;
+                ctx.globalAlpha = sparkleAlpha;
+                ctx.fillStyle = "#fff";
+                ctx.shadowColor = "#ffd700";
+                ctx.shadowBlur = 10;
+                // Draw star shape
+                ctx.beginPath();
+                for (let j = 0; j < 4; j++) {
+                  const angle = (j / 4) * Math.PI * 2 + elapsed * 3;
+                  ctx.moveTo(sx, sy);
+                  ctx.lineTo(sx + Math.cos(angle) * sparkleSize, sy + Math.sin(angle) * sparkleSize);
+                  ctx.lineTo(sx + Math.cos(angle + 0.3) * sparkleSize * 0.3, sy + Math.sin(angle + 0.3) * sparkleSize * 0.3);
+                }
+                ctx.fill();
+              }
+              ctx.restore();
+            }
+
+            // Record time
+            const recordAlpha = Math.min(Math.max((elapsed - 1.2) / 0.6, 0), 1);
             if (recordAlpha > 0) {
+              ctx.save();
               ctx.globalAlpha = recordAlpha;
-              ctx.fillStyle = "#333";
-              ctx.font = `bold ${Math.floor(viewport.width * 0.03)}px "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif`;
               ctx.textAlign = "center";
+              ctx.textBaseline = "middle";
+              ctx.font = `bold ${Math.floor(viewport.width * 0.025)}px "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif`;
+              ctx.fillStyle = "#2a2a2a";
               ctx.fillText(`記録: ${state.winRecord}`, viewport.width / 2, viewport.height / 2 + 20);
+              ctx.restore();
             }
 
+            // Retry prompt (pulsing)
+            const retryAlpha = Math.min(Math.max((elapsed - 2.2) / 0.8, 0), 1);
             if (retryAlpha > 0) {
-              ctx.globalAlpha = retryAlpha * 0.7;
-              ctx.fillStyle = "#888";
-              ctx.font = `${Math.floor(viewport.width * 0.02)}px "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif`;
+              ctx.save();
+              const pulse = 0.6 + Math.sin(elapsed * 3) * 0.15;
+              ctx.globalAlpha = retryAlpha * pulse;
+              ctx.fillStyle = "#666";
+              ctx.font = `${Math.floor(viewport.width * 0.022)}px "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif`;
               ctx.textAlign = "center";
-              ctx.fillText("Rキーでもう一度", viewport.width / 2, viewport.height / 2 + 60);
+              ctx.textBaseline = "middle";
+              ctx.fillText("Rキーでもう一度", viewport.width / 2, viewport.height / 2 + 90);
+              ctx.restore();
             }
 
-            ctx.restore();
+            // End screen shake save
+            if (state.winScreenShake > 0) {
+              ctx.restore();
+            }
           }
         }
 
@@ -1481,6 +1675,7 @@
 
           const delta = Math.min(33, timestamp - lastFrame);
           lastFrame = timestamp;
+          state.lastDelta = delta;
           update(delta);
           render();
           requestAnimationFrame(loop);

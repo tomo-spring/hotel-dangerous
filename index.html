@@ -838,7 +838,7 @@
             return;
           }
           state.mode = "lost";
-          setStatus(`${message} Rでやり直し。`);
+          state.lostAt = state.worldTime;
         }
 
         function win() {
@@ -1381,6 +1381,37 @@
           ctx.restore();
 
           timerEl.textContent = formatTimer(state.timer);
+
+          if (state.mode === "lost") {
+            const elapsed = state.worldTime - state.lostAt;
+            const overlayAlpha = Math.min(elapsed / 2.5, 0.85);
+            const textAlpha = Math.min(Math.max((elapsed - 1.5) / 1.5, 0), 1);
+            const retryAlpha = Math.min(Math.max((elapsed - 2.5) / 1.0, 0), 1);
+
+            ctx.save();
+            ctx.globalAlpha = overlayAlpha;
+            ctx.fillStyle = "#0a0a0a";
+            ctx.fillRect(0, 0, viewport.width, viewport.height);
+
+            if (textAlpha > 0) {
+              ctx.globalAlpha = textAlpha;
+              ctx.fillStyle = "#8a2020";
+              ctx.font = `bold ${Math.floor(viewport.width * 0.07)}px Impact, "Arial Black", sans-serif`;
+              ctx.textAlign = "center";
+              ctx.textBaseline = "middle";
+              ctx.fillText("GAME OVER", viewport.width / 2, viewport.height / 2 - 20);
+            }
+
+            if (retryAlpha > 0) {
+              ctx.globalAlpha = retryAlpha * 0.7;
+              ctx.fillStyle = "#999";
+              ctx.font = `${Math.floor(viewport.width * 0.02)}px "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif`;
+              ctx.textAlign = "center";
+              ctx.fillText("Rキーでリトライ", viewport.width / 2, viewport.height / 2 + 40);
+            }
+
+            ctx.restore();
+          }
         }
 
         function loop(timestamp) {

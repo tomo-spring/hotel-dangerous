@@ -162,7 +162,7 @@
           thigh: { src: null, anchorX: 0.5, anchorY: 0.5, scale: 1 },
           shin: { src: null, anchorX: 0.5, anchorY: 0.5, scale: 1 },
           foot: { src: null, anchorX: 0.5, anchorY: 0.5, scale: 1 },
-          enemy: { src: "./assets/moribito.png", anchorX: 0.5, anchorY: 1, scale: 1.7 },
+          enemy: { src: "./assets/moribito-1.png", anchorX: 0.5, anchorY: 1, scale: 1.7 },
           goal: { src: "./assets/goal.png", anchorX: 0.5, anchorY: 1, scale: 1.5, offsetY: 20 },
           ground: { src: null },
         };
@@ -179,6 +179,16 @@
 
         const keys = Object.create(null);
         const loadedImages = loadImages(ASSETS);
+
+        // Enemy animation frames (moribito-1 ~ moribito-3, cycling at ~20 FPS)
+        const enemyFrameImages = [1, 2, 3, 4, 5].map((i) => {
+          const img = new Image();
+          img.src = `./assets/moribito-${i}.png`;
+          return img;
+        });
+        // 1→2→3→4→5→4→3→2→ (ping-pong loop)
+        const enemyFrames = [0, 1, 2, 3, 4, 3, 2, 1].map((i) => enemyFrameImages[i]);
+        const ENEMY_FRAME_INTERVAL = 1 / 10; // 12 FPS
 
         /* ── Sound Effects (Web Audio API) ── */
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -317,8 +327,7 @@
         ];
 
         const enemyTemplates = [
-          { radius: 18, flip: true },
-          { radius: 20 },
+          { radius: 20, patrolSpeed: 30 },
         ];
 
         const scene = {
@@ -735,7 +744,7 @@
                 idleAngle: 0,
                 unwrappedAngle: 0,
                 lastWrappedAngle: 0,
-                rotationSpeed: 0.034,
+                rotationSpeed: 0.052,
               },
               {
                 side: "front",
@@ -745,7 +754,7 @@
                 idleAngle: 0,
                 unwrappedAngle: 0,
                 lastWrappedAngle: 0,
-                rotationSpeed: 0.034,
+                rotationSpeed: 0.052,
               },
             ],
           };
@@ -775,25 +784,11 @@
           scene.enemyDebris = [];
           const minX = 310;
           const maxX = Math.max(minX + 240, scene.goalX - 170);
-          const placements = [];
-
-          for (let index = 0; index < enemyTemplates.length; index += 1) {
-            let x = minX;
-            let attempts = 0;
-            do {
-              x = minX + Math.random() * (maxX - minX);
-              attempts += 1;
-            } while (
-              placements.some((placedX) => Math.abs(placedX - x) < 170) &&
-              attempts < 48
-            );
-            placements.push(x);
-          }
-
-          placements.sort((a, b) => a - b);
+          const patrolMinX = minX + (maxX - minX) * 0.25;
+          const patrolMaxX = minX + (maxX - minX) * 0.75;
 
           scene.enemies = enemyTemplates.map((entry, index) => {
-            const x = placements[index];
+            const x = patrolMaxX; // start from right
             const collisionRadius = entry.radius * 1.7;
             const body = Bodies.circle(x, groundHeightAt(x) - collisionRadius, collisionRadius, {
               isStatic: true,
@@ -809,6 +804,10 @@
               x,
               body,
               collapsed: false,
+              patrolMinX,
+              patrolMaxX,
+              patrolDir: -1,
+              flip: false,
             };
           });
         }
@@ -857,6 +856,26 @@
             enemy.flyX += enemy.flyVx * dt;
             enemy.flyY += enemy.flyVy * dt;
             enemy.flyRotation += enemy.flyAngularVel;
+          }
+        }
+
+        function updateEnemyPatrol(dtMs) {
+          const dt = dtMs / 1000;
+          for (const enemy of scene.enemies) {
+            if (enemy.collapsed || !enemy.patrolSpeed) continue;
+            const speed = enemy.patrolSpeed * enemy.patrolDir;
+            const newX = enemy.body.position.x + speed * dt;
+            if (newX >= enemy.patrolMaxX) {
+              enemy.patrolDir = -1;
+              enemy.flip = false;
+            } else if (newX <= enemy.patrolMinX) {
+              enemy.patrolDir = 1;
+              enemy.flip = true;
+            }
+            enemy.flip = enemy.patrolDir > 0;
+            const groundY = groundHeightAt(newX);
+            const collisionRadius = enemy.radius * 1.7;
+            Body.setPosition(enemy.body, { x: newX, y: groundY - collisionRadius });
           }
         }
 
@@ -1201,6 +1220,7 @@
           updateWind(deltaSeconds);
           updateEnemyDebris();
           updateFlyingEnemies(deltaMs);
+          updateEnemyPatrol(deltaMs);
           controlPlayer();
           Engine.update(engine, deltaMs);
           lockTorsoRotation();
@@ -1447,7 +1467,8 @@
         }
 
         function drawEnemy(enemy) {
-          const image = loadedImages.enemy;
+          const frameIndex = Math.floor(state.worldTime / ENEMY_FRAME_INTERVAL) % enemyFrames.length;
+          const image = enemyFrames[frameIndex];
           const x = enemy.body.position.x;
           const y = enemy.body.position.y;
 

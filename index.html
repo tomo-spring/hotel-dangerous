@@ -1577,21 +1577,21 @@
               // Title
               ctx.fillStyle = "#cccccc";
               ctx.font = `bold ${Math.floor(viewport.width * 0.03)}px "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif`;
-              ctx.fillText("あなたのせいで", cx, cy - 50);
+              ctx.fillText("あなたのせいで", cx, cy - 100);
 
               // Sub message with slight delay
               const subAlpha = Math.min(Math.max((elapsed - 2.5) / 1.5, 0), 1);
               ctx.globalAlpha = subAlpha;
               ctx.fillStyle = "#cccccc";
               ctx.font = `bold ${Math.floor(viewport.width * 0.03)}px "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif`;
-              ctx.fillText("アルバイトが死んでしまいました…", cx, cy + 10);
+              ctx.fillText("アルバイトが死んでしまいました…", cx, cy - 40);
 
               // Ellipsis dots fade in
               const dotsAlpha = Math.min(Math.max((elapsed - 4.0) / 1.5, 0), 1);
               ctx.globalAlpha = dotsAlpha * 0.5;
               ctx.fillStyle = "#cccccc";
               ctx.font = `bold ${Math.floor(viewport.width * 0.022)}px "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif`;
-              ctx.fillText("彼女にも家族がいたのに、、", cx, cy + 70);
+              ctx.fillText("彼女にも家族がいたのに、、", cx, cy + 20);
 
               ctx.restore();
             }

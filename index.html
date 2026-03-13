@@ -95,6 +95,11 @@
   </head>
   <body>
     <canvas id="game"></canvas>
+    <img id="end-img-overlay" src="./assets/player-body-end.png" alt=""
+      style="position:fixed;right:12vw;top:50%;transform:translateY(-50%);
+             height:55vh;object-fit:contain;pointer-events:none;opacity:0;
+             transition:opacity 4s ease;z-index:10;
+             filter:saturate(1.2) brightness(1.05) drop-shadow(0 0 30px rgba(0,0,0,0.5));" />
     <div class="hud">
       <p class="timer" id="timer">00:00.000</p>
       <div class="controls" aria-hidden="true">
@@ -165,6 +170,7 @@
           enemy: { src: "./assets/moribito-1.png", anchorX: 0.5, anchorY: 1, scale: 1.7 },
           goal: { src: "./assets/goal.png", anchorX: 0.5, anchorY: 1, scale: 1.5, offsetY: 20 },
           ground: { src: null },
+          playerBodyEnd: { src: "./assets/player-body-end.png" },
         };
 
         const {
@@ -1165,6 +1171,11 @@
 
         function resetGame() {
           canvas.style.filter = "";
+          const endOverlay = document.getElementById("end-img-overlay");
+          endOverlay.style.transition = "none";
+          endOverlay.style.opacity = "0";
+          void endOverlay.offsetHeight; // force reflow
+          endOverlay.style.transition = "opacity 4s ease";
           for (const key of Object.keys(keys)) {
             delete keys[key];
           }
@@ -1552,52 +1563,54 @@
           if (state.mode === "lost") {
             const elapsed = state.worldTime - state.lostAt;
 
-            // Grayscale + desaturation effect on the whole canvas
-            const grayAmount = Math.min(elapsed / 2.0, 1);
-            canvas.style.filter = `grayscale(${grayAmount}) brightness(${1 - grayAmount * 0.3})`;
-
-            // Dark overlay
-            const overlayAlpha = Math.min(elapsed / 3.0, 0.7);
+            // Black background — fade to full black
+            const blackAlpha = Math.min(elapsed / 1.2, 1);
+            canvas.style.filter = "";
             ctx.save();
-            ctx.globalAlpha = overlayAlpha;
-            ctx.fillStyle = "#0a0a0a";
+            ctx.globalAlpha = blackAlpha;
+            ctx.fillStyle = "#000000";
             ctx.fillRect(0, 0, viewport.width, viewport.height);
             ctx.restore();
 
-            // Main message
-            const msgAlpha = Math.min(Math.max((elapsed - 1.5) / 2.0, 0), 1);
+            const cx = viewport.width / 2;
+            const cy = viewport.height / 2;
+            const leftX = viewport.width * 0.35;
+            const rightX = viewport.width * 0.68;
+
+            // Player body end image — show HTML overlay (not affected by canvas grayscale)
+            const endOverlay = document.getElementById("end-img-overlay");
+            if (elapsed > 1.7) {
+              endOverlay.style.opacity = "1";
+            }
+
+            // Main message — left side
+            const msgAlpha = Math.min(Math.max((elapsed - 1.7) / 4.0, 0), 1);
             if (msgAlpha > 0) {
               ctx.save();
               ctx.globalAlpha = msgAlpha;
               ctx.textAlign = "center";
               ctx.textBaseline = "middle";
-              const cx = viewport.width / 2;
-              const cy = viewport.height / 2;
 
               // Title
               ctx.fillStyle = "#cccccc";
-              ctx.font = `bold ${Math.floor(viewport.width * 0.03)}px "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif`;
-              ctx.fillText("あなたのせいで", cx, cy - 100);
+              ctx.font = `bold ${Math.floor(viewport.width * 0.022)}px "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif`;
+              ctx.fillText("あなたのせいで", leftX, cy - 30);
 
               // Sub message with slight delay
-              const subAlpha = Math.min(Math.max((elapsed - 2.5) / 1.5, 0), 1);
+              const subAlpha = Math.min(Math.max((elapsed - 3.2) / 4.0, 0), 1);
               ctx.globalAlpha = subAlpha;
-              ctx.fillStyle = "#cccccc";
-              ctx.font = `bold ${Math.floor(viewport.width * 0.03)}px "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif`;
-              ctx.fillText("アルバイトが死んでしまいました…", cx, cy - 40);
+              ctx.fillText("アルバイト社員の命が失われました", leftX, cy + 20);
 
               // Ellipsis dots fade in
-              const dotsAlpha = Math.min(Math.max((elapsed - 4.0) / 1.5, 0), 1);
-              ctx.globalAlpha = dotsAlpha * 0.5;
-              ctx.fillStyle = "#cccccc";
-              ctx.font = `bold ${Math.floor(viewport.width * 0.022)}px "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif`;
-              ctx.fillText("彼女にも家族がいたのに、、", cx, cy + 20);
+              const dotsAlpha = Math.min(Math.max((elapsed - 5.2) / 4.0, 0), 1);
+              ctx.globalAlpha = dotsAlpha;
+              ctx.fillText("彼女にも家族がいたのに...", leftX, cy + 70);
 
               ctx.restore();
             }
 
-            // Retry prompt
-            const retryFadeIn = Math.min(Math.max((elapsed - 7.0) / 2.0, 0), 1);
+            // Retry prompt — left side, below text
+            const retryFadeIn = Math.min(Math.max((elapsed - 7.0) / 3.0, 0), 1);
             if (retryFadeIn > 0) {
               ctx.save();
               const blink = retryFadeIn < 1 ? retryFadeIn : 0.3 + 0.3 * Math.sin(elapsed * 3);
@@ -1605,7 +1618,7 @@
               ctx.fillStyle = "#cccccc";
               ctx.font = `${Math.floor(viewport.width * 0.016)}px "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif`;
               ctx.textAlign = "center";
-              ctx.fillText("Rキーでリトライ", viewport.width / 2, viewport.height / 2 + 160);
+              ctx.fillText("Rキーでリトライ", leftX, cy + 220);
               ctx.restore();
             }
           }

@@ -1,15 +1,6 @@
 import { clamp } from "./utils.js";
 
-export const terrainBumps = [
-  { x: 730, width: 120, height: 16 },
-  { x: 980, width: 84, height: -12 },
-  { x: 1260, width: 140, height: 24 },
-  { x: 1580, width: 110, height: -10 },
-  { x: 1870, width: 90, height: 18 },
-  { x: 2320, width: 120, height: 28 },
-  { x: 2680, width: 150, height: -14 },
-  { x: 3000, width: 120, height: 22 },
-];
+export const terrainBumps = [];
 
 export const enemyTemplates = [
   { radius: 20, patrolSpeed: 30 },
@@ -72,6 +63,6 @@ export function groundHeightAt(x) {
 }
 
 export function configureCourse() {
-  scene.width = Math.max(viewport.width + 140, 1180);
-  scene.goalX = clamp(viewport.width - 150, 760, scene.width - 150);
+  scene.goalX = viewport.width - 150;
+  scene.width = Math.max(scene.goalX + 260, viewport.width + 140);
 }

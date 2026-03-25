@@ -85,19 +85,30 @@ function drawBackground(ctx) {
 }
 
 function drawGround(ctx) {
-  const y = groundBase();
-  const x = state.cameraX;
-  const w = viewport.width;
-  const h = viewport.height - y;
+  const startX = state.cameraX;
+  const endX = startX + viewport.width;
+  const step = 4;
+  const bottom = viewport.height;
 
   ctx.fillStyle = "#B8956A";
-  ctx.fillRect(x, y, w, h);
+  ctx.beginPath();
+  ctx.moveTo(startX, bottom);
+  for (let x = startX; x <= endX; x += step) {
+    ctx.lineTo(x, groundHeightAt(x));
+  }
+  ctx.lineTo(endX, groundHeightAt(endX));
+  ctx.lineTo(endX, bottom);
+  ctx.closePath();
+  ctx.fill();
 
   ctx.strokeStyle = "#4A2E14";
   ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.moveTo(x, y);
-  ctx.lineTo(x + w, y);
+  ctx.moveTo(startX, groundHeightAt(startX));
+  for (let x = startX + step; x <= endX; x += step) {
+    ctx.lineTo(x, groundHeightAt(x));
+  }
+  ctx.lineTo(endX, groundHeightAt(endX));
   ctx.stroke();
 }
 
@@ -322,14 +333,15 @@ function drawLoseScreen(ctx) {
   }
 
   const retryFadeIn = Math.min(Math.max((elapsed - 7.0) / 3.0, 0), 1);
+  state.retryReady = retryFadeIn > 0;
   if (retryFadeIn > 0) {
     ctx.save();
     const blink = retryFadeIn < 1 ? retryFadeIn : 0.3 + 0.3 * Math.sin(elapsed * 3);
     ctx.globalAlpha = blink;
     ctx.fillStyle = "#cccccc";
-    ctx.font = `${Math.floor(viewport.width * 0.016)}px "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif`;
+    ctx.font = `22px "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif`;
     ctx.textAlign = "center";
-    ctx.fillText("Rキーでリトライ", leftX, cy + 220);
+    ctx.fillText("スペースキーで最初に戻る", leftX, cy + 220);
     ctx.restore();
   }
 }
@@ -459,15 +471,16 @@ function drawWinScreen(ctx) {
   }
 
   const retryAlpha = Math.min(Math.max((elapsed - 2.2) / 0.8, 0), 1);
+  state.retryReady = retryAlpha > 0;
   if (retryAlpha > 0) {
     ctx.save();
     const pulse = 0.6 + Math.sin(elapsed * 3) * 0.15;
     ctx.globalAlpha = retryAlpha * pulse;
     ctx.fillStyle = "#666";
-    ctx.font = `${Math.floor(viewport.width * 0.022)}px "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif`;
+    ctx.font = `22px "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText("Rキーでもう一度", viewport.width / 2, viewport.height / 2 + 90);
+    ctx.fillText("スペースキーで最初に戻る", viewport.width / 2, viewport.height / 2 + 90);
     ctx.restore();
   }
 

@@ -1,4 +1,4 @@
-import { viewport, keys, configureCourse } from "./state.js";
+import { viewport, keys, state, configureCourse } from "./state.js";
 import { sfx } from "./audio.js";
 import { resetGame, loop, surrender } from "./game.js";
 
@@ -24,11 +24,11 @@ function resize() {
 
 window.addEventListener("keydown", (event) => {
   const key = event.key.toLowerCase();
-  if (["q", "w", "o", "p", "r"].includes(key)) {
+  if (["q", "w", "o", "p"].includes(key) || event.code === "Space") {
     event.preventDefault();
   }
 
-  if (key === "r") {
+  if (event.code === "Space" && state.retryReady) {
     sfx("retry");
     resetGame(canvas);
     return;
@@ -41,7 +41,8 @@ window.addEventListener("keyup", (event) => {
   keys[event.key.toLowerCase()] = false;
 });
 
-document.getElementById("surrender-btn").addEventListener("click", () => {
+document.getElementById("surrender-btn").addEventListener("click", (e) => {
+  e.target.blur();
   surrender();
 });
 

@@ -157,6 +157,12 @@ export function resetGame(canvas) {
   state.windTime = 0.35;
   state.windForce = 0;
   state.surrendered = false;
+  state.lostAt = 0;
+  state.wonAt = 0;
+  state.winRecord = "";
+  state.winConfetti = null;
+  state.winScreenShake = 0;
+  state.retryReady = false;
 
   game.lastFrame = 0;
 

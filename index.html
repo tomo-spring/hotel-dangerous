@@ -95,11 +95,20 @@
   </head>
   <body>
     <canvas id="game"></canvas>
-    <img id="end-img-overlay" src="./assets/player-body-end.png" alt=""
-      style="position:fixed;right:12vw;top:50%;transform:translateY(-50%);
-             height:55vh;object-fit:contain;pointer-events:none;opacity:0;
-             transition:opacity 4s ease;z-index:10;
-             filter:saturate(1.2) brightness(1.05) drop-shadow(0 0 30px rgba(0,0,0,0.5));" />
+    <div id="end-img-overlay" style="pointer-events:none;opacity:0;transition:opacity 4s ease;">
+      <div style="position:fixed;right:16vw;bottom:5vh;display:flex;gap:0;z-index:9;">
+        <img src="./assets/player-leg-rear.png" alt=""
+          style="height:38vh;object-fit:contain;margin-right:-7vh;
+                 filter:saturate(1.2) brightness(1.05) drop-shadow(0 0 20px rgba(0,0,0,0.4));" />
+        <img src="./assets/player-leg-front.png" alt=""
+          style="height:38vh;object-fit:contain;margin-left:-7vh;
+                 filter:saturate(1.2) brightness(1.05) drop-shadow(0 0 20px rgba(0,0,0,0.4));" />
+      </div>
+      <img src="./assets/player-body-end.png" alt=""
+        style="position:fixed;right:16vw;top:50%;transform:translateY(-75%);
+               height:55vh;object-fit:contain;z-index:10;
+               filter:saturate(1.2) brightness(1.05) drop-shadow(0 0 30px rgba(0,0,0,0.5));" />
+    </div>
     <div class="hud">
       <p class="timer" id="timer">00:00.000</p>
       <div class="controls" aria-hidden="true">

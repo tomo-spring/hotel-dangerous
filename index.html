@@ -186,7 +186,7 @@
         const keys = Object.create(null);
         const loadedImages = loadImages(ASSETS);
 
-        // Enemy animation frames (moribito-1 ~ moribito-3, cycling at ~20 FPS)
+        // Enemy animation frames (moribito-1 ~ moribito-5, ping-pong loop)
         const enemyFrameImages = [1, 2, 3, 4, 5].map((i) => {
           const img = new Image();
           img.src = `./assets/moribito-${i}.png`;
@@ -194,7 +194,7 @@
         });
         // 1→2→3→4→5→4→3→2→ (ping-pong loop)
         const enemyFrames = [0, 1, 2, 3, 4, 3, 2, 1].map((i) => enemyFrameImages[i]);
-        const ENEMY_FRAME_INTERVAL = 1 / 10; // 12 FPS
+        const ENEMY_FRAME_INTERVAL = 1 / 10; // 10 FPS
 
         /* ── Sound Effects (Web Audio API) ── */
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -340,7 +340,6 @@
           width: 1400,
           goalX: 920,
           enemies: [],
-          enemyDebris: [],
           clouds: [
             { x: 220, y: 132, radius: 82, stretch: 1.8 },
             { x: 760, y: 182, radius: 64, stretch: 1.5 },
@@ -545,10 +544,20 @@
         }
 
         function groundHeightAt(x) {
-          return groundBase();
+          let y = groundBase();
+          for (const bump of terrainBumps) {
+            const halfW = bump.width * 0.5;
+            const dist = Math.abs(x - bump.x);
+            if (dist < halfW) {
+              const t = 1 - dist / halfW;
+              y -= bump.height * t * t * (3 - 2 * t);
+            }
+          }
+          return y;
         }
 
         function setStatus(text) {
+          // placeholder for future status display
         }
 
         function formatTimer(totalSeconds) {
@@ -574,10 +583,6 @@
           canvas.style.height = `${viewport.height}px`;
           ctx.setTransform(viewport.dpr, 0, 0, viewport.dpr, 0, 0);
           configureCourse();
-
-          if (engine) {
-            resetGame();
-          }
         }
 
         function createTerrainBodies() {
@@ -787,7 +792,6 @@
         }
 
         function createEnemies() {
-          scene.enemyDebris = [];
           const minX = 310;
           const maxX = Math.max(minX + 240, scene.goalX - 170);
           const patrolMinX = minX + (maxX - minX) * 0.25;
@@ -841,18 +845,6 @@
           enemy.flewAt = state.worldTime;
         }
 
-        function updateEnemyDebris() {
-          scene.enemyDebris = scene.enemyDebris.filter((piece) => {
-            const age = state.worldTime - piece.plugin.debris.bornAt;
-            if (age <= piece.plugin.debris.life) {
-              return true;
-            }
-            Composite.remove(engine.world, piece);
-            return false;
-          });
-        }
-
-
         function updateFlyingEnemies(dtMs) {
           const dt = dtMs / 1000;
           const gravity = 800;
@@ -873,10 +865,8 @@
             const newX = enemy.body.position.x + speed * dt;
             if (newX >= enemy.patrolMaxX) {
               enemy.patrolDir = -1;
-              enemy.flip = false;
             } else if (newX <= enemy.patrolMinX) {
               enemy.patrolDir = 1;
-              enemy.flip = true;
             }
             enemy.flip = enemy.patrolDir > 0;
             const groundY = groundHeightAt(newX);
@@ -1137,12 +1127,6 @@
           }
         }
 
-        function checkFailureOrWin() {
-          if (state.mode === "lost" || state.mode === "won") {
-            return;
-          }
-        }
-
         function updateCamera() {
         }
 
@@ -1230,7 +1214,6 @@
           }
 
           updateWind(deltaSeconds);
-          updateEnemyDebris();
           updateFlyingEnemies(deltaMs);
           updateEnemyPatrol(deltaMs);
           controlPlayer();
@@ -1241,7 +1224,6 @@
             state.timer += deltaSeconds;
           }
 
-          checkFailureOrWin();
           updateCamera();
         }
 
@@ -1517,24 +1499,6 @@
           ctx.restore();
         }
 
-        function drawEnemyDebris(piece) {
-          const age = state.worldTime - piece.plugin.debris.bornAt;
-          const fade = clamp(1 - age / piece.plugin.debris.life, 0, 1);
-          const { width, height, color } = piece.plugin.debris;
-
-          ctx.save();
-          ctx.translate(piece.position.x, piece.position.y);
-          ctx.rotate(piece.angle);
-          ctx.globalAlpha = fade;
-          ctx.fillStyle = color;
-          ctx.strokeStyle = "rgba(4, 16, 34, 0.45)";
-          ctx.lineWidth = 1.5;
-          roundRectPath(ctx, -width * 0.5, -height * 0.5, width, height, 3);
-          ctx.fill();
-          ctx.stroke();
-          ctx.restore();
-        }
-
         function render() {
           ctx.clearRect(0, 0, viewport.width, viewport.height);
           drawBackground();
@@ -1546,9 +1510,6 @@
               drawShadow(enemy.body.position.x, groundHeightAt(enemy.body.position.x) + 3, enemy.radius * 1.25, 0.16);
             }
             drawEnemy(enemy);
-          }
-          for (const piece of scene.enemyDebris) {
-            drawEnemyDebris(piece);
           }
           drawPlayer();
           drawGround();
@@ -1631,10 +1592,10 @@
             if (state.winConfetti) updateConfetti(state.winConfetti, dt);
 
             // Screen shake (decays over time)
+            ctx.save();
             if (state.winScreenShake > 0) {
               state.winScreenShake = Math.max(0, state.winScreenShake - dt * 1.5);
               const shakeAmt = state.winScreenShake * 15;
-              ctx.save();
               ctx.translate(
                 (Math.random() - 0.5) * shakeAmt,
                 (Math.random() - 0.5) * shakeAmt
@@ -1774,10 +1735,8 @@
               ctx.restore();
             }
 
-            // End screen shake save
-            if (state.winScreenShake > 0) {
-              ctx.restore();
-            }
+            // End screen shake
+            ctx.restore();
           }
         }
 

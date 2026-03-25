@@ -295,15 +295,28 @@ function drawLoseScreen(ctx) {
 
     ctx.fillStyle = "#cccccc";
     ctx.font = `bold ${Math.floor(viewport.width * 0.022)}px "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif`;
-    ctx.fillText("あなたのせいで", leftX, cy - 30);
 
-    const subAlpha = Math.min(Math.max((elapsed - 3.2) / 4.0, 0), 1);
-    ctx.globalAlpha = subAlpha;
-    ctx.fillText("アルバイト社員の命が失われました", leftX, cy + 20);
+    if (state.surrendered) {
+      ctx.fillText("ホテルの出勤に遅刻してしまった…", leftX, cy - 30);
 
-    const dotsAlpha = Math.min(Math.max((elapsed - 5.2) / 4.0, 0), 1);
-    ctx.globalAlpha = dotsAlpha;
-    ctx.fillText("彼女にも家族がいたのに...", leftX, cy + 70);
+      const subAlpha = Math.min(Math.max((elapsed - 3.2) / 4.0, 0), 1);
+      ctx.globalAlpha = subAlpha;
+      ctx.fillText("フロントに誰もいない…", leftX, cy + 20);
+
+      const dotsAlpha = Math.min(Math.max((elapsed - 5.2) / 4.0, 0), 1);
+      ctx.globalAlpha = dotsAlpha;
+      ctx.fillText("お客様が怒っている…", leftX, cy + 70);
+    } else {
+      ctx.fillText("あなたのせいで", leftX, cy - 30);
+
+      const subAlpha = Math.min(Math.max((elapsed - 3.2) / 4.0, 0), 1);
+      ctx.globalAlpha = subAlpha;
+      ctx.fillText("アルバイト社員の命が失われました", leftX, cy + 20);
+
+      const dotsAlpha = Math.min(Math.max((elapsed - 5.2) / 4.0, 0), 1);
+      ctx.globalAlpha = dotsAlpha;
+      ctx.fillText("彼女にも家族がいたのに...", leftX, cy + 70);
+    }
 
     ctx.restore();
   }

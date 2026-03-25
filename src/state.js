@@ -35,6 +35,7 @@ export const state = {
   cameraX: 0,
   windTime: 0,
   windForce: 0,
+  surrendered: false,
 };
 
 export const viewport = {

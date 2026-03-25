@@ -1,6 +1,6 @@
 import { viewport, keys, configureCourse } from "./state.js";
 import { sfx } from "./audio.js";
-import { resetGame, loop } from "./game.js";
+import { resetGame, loop, surrender } from "./game.js";
 
 if (!window.Matter) {
   throw new Error("Matter.js is required");
@@ -39,6 +39,10 @@ window.addEventListener("keydown", (event) => {
 
 window.addEventListener("keyup", (event) => {
   keys[event.key.toLowerCase()] = false;
+});
+
+document.getElementById("surrender-btn").addEventListener("click", () => {
+  surrender();
 });
 
 window.addEventListener("resize", resize);

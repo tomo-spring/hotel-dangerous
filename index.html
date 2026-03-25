@@ -67,6 +67,31 @@
         color: #555;
       }
 
+      .surrender-btn {
+        position: absolute;
+        top: 29px;
+        left: 395px;
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        border: 3px solid #991b1b;
+        background: #b91c1c;
+        color: #fff;
+        font-family: inherit;
+        font-size: 1.1rem;
+        font-weight: 900;
+        cursor: pointer;
+        pointer-events: auto;
+        box-shadow: 0 3px 8px rgba(0, 0, 0, 0.35);
+        transition: transform 0.1s, box-shadow 0.1s;
+        line-height: 1.1;
+      }
+
+      .surrender-btn:active {
+        transform: scale(0.93);
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+      }
+
       .controls p {
         display: flex;
         align-items: center;
@@ -111,6 +136,7 @@
     </div>
     <div class="hud">
       <p class="timer" id="timer">00:00.000</p>
+      <button class="surrender-btn" id="surrender-btn">降参</button>
       <div class="controls" aria-hidden="true">
         <p><kbd>Q</kbd> 後ろの足を前へ</p>
         <p><kbd>W</kbd> 後ろの足を後ろへ</p>

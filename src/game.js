@@ -32,6 +32,16 @@ function lose() {
   sfx("lose");
 }
 
+export function surrender() {
+  if (state.mode !== "playing" && state.mode !== "ready") {
+    return;
+  }
+  state.surrendered = true;
+  state.mode = "lost";
+  state.lostAt = state.worldTime;
+  sfx("lose");
+}
+
 function win() {
   if (state.mode === "lost" || state.mode === "won") {
     return;
@@ -146,6 +156,7 @@ export function resetGame(canvas) {
   state.cameraX = 0;
   state.windTime = 0.35;
   state.windForce = 0;
+  state.surrendered = false;
 
   settleInitialPose();
 }

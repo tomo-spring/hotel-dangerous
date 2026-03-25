@@ -158,6 +158,8 @@ export function resetGame(canvas) {
   state.windForce = 0;
   state.surrendered = false;
 
+  game.lastFrame = 0;
+
   settleInitialPose();
 }
 
@@ -169,7 +171,7 @@ export function loop(timestamp, ctx, canvas, timerEl) {
   const delta = Math.min(33, timestamp - game.lastFrame);
   game.lastFrame = timestamp;
   state.lastDelta = delta;
-  update(delta);
+  if (delta > 0) update(delta);
   render(ctx, canvas, timerEl);
   requestAnimationFrame((ts) => loop(ts, ctx, canvas, timerEl));
 }

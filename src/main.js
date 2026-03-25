@@ -20,6 +20,9 @@ function resize() {
   canvas.style.height = `${viewport.height}px`;
   ctx.setTransform(viewport.dpr, 0, 0, viewport.dpr, 0, 0);
   configureCourse();
+  if (state.mode === "ready") {
+    resetGame(canvas);
+  }
 }
 
 window.addEventListener("keydown", (event) => {

@@ -291,7 +291,7 @@ export function lockTorsoRotation() {
 
 export function settleInitialPose() {
   const { engine, player } = game;
-  for (let i = 0; i < 8; i += 1) {
+  for (let i = 0; i < 60; i += 1) {
     Engine.update(engine, 1000 / 60);
     lockTorsoRotation();
   }

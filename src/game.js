@@ -167,6 +167,7 @@ export function resetGame(canvas) {
   game.lastFrame = 0;
 
   settleInitialPose();
+  game.engine.timing.lastDelta = 1000 / 60;
 }
 
 export function loop(timestamp, ctx, canvas, timerEl) {
